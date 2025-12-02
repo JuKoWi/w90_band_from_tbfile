@@ -6,21 +6,22 @@ import os
 import sys
 from pathlib import Path
 
-plt.style.use('../plot_helper/style.mplstyle')
+# plt.style.use('../plot_helper/style.mplstyle')
 sys.path.insert(0, str(Path.cwd().parent.absolute()))
 
 from multiprocessing import Pool
-import psutil
-from threadpoolctl import threadpool_limits
+# import psutil
+# from threadpoolctl import threadpool_limits
 
 
-from plot_helper import atu, place_labels, save_pdf
-from KspaceInterpolator import KspaceInterpolator
+# from plot_helper import atu, place_labels, save_pdf
+# from KspaceInterpolator import KspaceInterpolator
 
 from itertools import cycle
 
 
 def parsePath(path, lattice, labelToK, pointsPerSegment=100):
+    """use this after w90.py"""
     recipLattice = 2*np.pi * np.linalg.inv(lattice).T
     segments = []
     lastRelPos = 0
@@ -131,6 +132,13 @@ def plotPath_QE(ax, fname):
 
 
 if __name__ == "__main__":
+
+
+
+
+
+
+
     sc = 0.85
     fig, ax = plt.subplots(1, 2, figsize=(sc*10, sc*4.5))
     axMoS2, axSi = ax

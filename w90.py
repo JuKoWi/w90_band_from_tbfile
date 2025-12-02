@@ -2,12 +2,14 @@
 
 import numpy as np
 import os
+import sys
 
 ###########################
 # Utility routines
 ###########################
 
 def symmetrizeMatrixElements(cells, H, R):
+    """if not unitary force unitarity"""
     cellMap = {}
     for i, c in enumerate(cells):
         cellMap[tuple(c)] = i
@@ -25,7 +27,8 @@ def symmetrizeMatrixElements(cells, H, R):
 # Reading routines
 ###########################
 
-""" Reads _tb file from wannier90 file. The units are eV and eV * A """
+""" Reads _tb file from wannier90 file. The units are eV and eV * Angstrom """
+"""dont  use symmetrize"""
 def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
     origFname = None
     for fn in [fname, fname + "_tb.dat", fname + ".dat"]:
@@ -51,6 +54,7 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
         degeneracy = np.array(degeneracy)
         cells = np.empty((nR, 3), dtype=int)
         H = np.empty((nR, numWann, numWann), dtype=complex)
+        S = np.empty((nR, numWann, numWann), dtype=complex)
         R = np.empty((nR, numWann, numWann, 3), dtype=complex)
 
         for ri in range(nR):
@@ -60,10 +64,13 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
                 for b in range(numWann):
                     sp = f.readline().split()
                     aS, bS = [int(s)-1 for s in sp[:2]]
-                    Hreal, Himag = [float(s) for s in sp[2::]]
+                    Hreal, Himag = [float(s) for s in sp[2:4:]]
+                    Sreal, Simag = [float(s) for s in sp[4:6:]]
                     if onlyReal:
                         Himag = 0
+                        Simag = 0
                     H[ri, aS, bS] = Hreal + 1j * Himag
+                    S[ri, aS, bS] = Sreal + 1j * Simag
                     
         # dipole transition
         for ri in range(nR):
@@ -81,7 +88,7 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
                     R[ri, aS, bS] = rReal + 1j * rImag
     if symmetrize:
         H, R = symmetrizeMatrixElements(cells, H, R)
-    return lattice, cells, degeneracy, H, R
+    return lattice, cells, degeneracy, H, S, R
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
 def read_wsvec(fname):
@@ -195,8 +202,8 @@ def Dk_old(cells, degeneracy, D, kFrac):
     Hint: data can be obtained by read_wsvectb
 """
 def Hk(cells, H, kFrac):
-    kr = 2 * np.pi * np.einsum("ab, b", cells, kFrac)
-    Hk = np.einsum("a,abc",  np.exp(1j * kr), H)
+    kr = 2 * np.pi * np.einsum("ab, ...b", cells, kFrac)
+    Hk = np.einsum("...a,abc",  np.exp(1j * kr), H)
     return Hk
 
 """ interpolates dipole operator to fractional k-point using the new interpolation scheme
@@ -206,3 +213,5 @@ def Dk(cells, D, kFrac):
     kr = 2 * np.pi * np.einsum("ab, b", cells, kFrac)
     Dk = np.einsum("a,abcd->bcd",  np.exp(1j * kr), D)
     return Dk
+
+
