@@ -11,9 +11,13 @@
              };
 
              myPython = pkgs.python3.withPackages (p: with p; [
-                numpy
-                scipy
-                matplotlib
+		    ase
+		    matplotlib
+		    numpy
+		    pytest
+		    pyyaml
+		    scipy
+		    sympy
              ]);
 
         in {
@@ -23,6 +27,11 @@
                            myPython
                            # pkgs.gtest
                     ];
+shellHook = ''
+                    ROOT_PATH=$(git rev-parse --show-toplevel)
+		    export PYTHONPATH="$ROOT_PATH:$PYTHONPATH";  # or "PYTHONPATH=./" if using mkShell rec
+            '';
                 };
+
     };
 }

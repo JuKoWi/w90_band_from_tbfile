@@ -202,9 +202,9 @@ def Dk_old(cells, degeneracy, D, kFrac):
     Hint: data can be obtained by read_wsvectb
 """
 def Hk(cells, H, kFrac):
-    kr = 2 * np.pi * np.einsum("ab, ...b", cells, kFrac)
-    Hk = np.einsum("...a,abc",  np.exp(1j * kr), H)
-    return Hk
+    kr = 2 * np.pi * np.einsum("ab,...b ->...a", cells, kFrac)
+    Hk = np.einsum("...a,abc->...bc",  np.exp(1j * kr), H)
+    return Hk 
 
 """ interpolates dipole operator to fractional k-point using the new interpolation scheme
     Hint: data can be obtained by read_wsvectb
@@ -213,5 +213,8 @@ def Dk(cells, D, kFrac):
     kr = 2 * np.pi * np.einsum("ab, b", cells, kFrac)
     Dk = np.einsum("a,abcd->bcd",  np.exp(1j * kr), D)
     return Dk
+
+def myfunc(a):
+    return 5
 
 

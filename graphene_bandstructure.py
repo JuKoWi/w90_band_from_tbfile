@@ -1,8 +1,9 @@
 import w90
+import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
-from bandstructure import parsePath 
+from bandstructure import parsePath,plotLines
 
 # read seedname_tb.dat with read_tb -> realspace matrices for different lattice vectors
 # use Hk or Dk to convert realspace to reciprocal space matrices for given k-point 
@@ -17,6 +18,11 @@ segments, labels = parsePath("GMKG", lattice, labelToK=MoS2_labelToK)
 fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 scale = 800
 
+Hk = w90.Hk(cells=cells, H=Hr, kFrac=[0,0,0]) 
+Sk = w90.Hk(cells=cells, H=Sr, kFrac=[0,0,0]) 
+vals, vecs = sp.linalg.eig(Hk, Sk)
+print(vals)
+
 for i, (kPoints, relPos) in enumerate(segments):
     Hk = w90.Hk(cells=cells,H=Hr, kFrac=kPoints)
     Sk = w90.Hk(cells=cells, H=Sr, kFrac=kPoints)
@@ -25,8 +31,9 @@ for i, (kPoints, relPos) in enumerate(segments):
     print(np.shape(kPoints))
     print(np.shape(relPos))
 fig.tight_layout()
+l, pos = zip(*labels)
+plotLines(ax=ax, pos=pos, labels=labels)
 plt.show()
-
 
 
 
