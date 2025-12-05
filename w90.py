@@ -2,7 +2,8 @@
 
 import numpy as np
 import os
-import sys
+import scipy as sc
+
 
 ###########################
 # Utility routines
@@ -88,6 +89,8 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
                     R[ri, aS, bS] = rReal + 1j * rImag
     if symmetrize:
         H, R = symmetrizeMatrixElements(cells, H, R)
+    # for ri in range(nR):
+    #     print(sc.linalg.ishermitian(H[ri]))
     return lattice, cells, degeneracy, H, S, R
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
@@ -210,8 +213,8 @@ def Hk(cells, H, kFrac):
     Hint: data can be obtained by read_wsvectb
 """
 def Dk(cells, D, kFrac):
-    kr = 2 * np.pi * np.einsum("ab, b", cells, kFrac)
-    Dk = np.einsum("a,abcd->bcd",  np.exp(1j * kr), D)
+    kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
+    Dk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), D)
     return Dk
 
 def myfunc(a):
