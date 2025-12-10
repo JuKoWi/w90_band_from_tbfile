@@ -207,6 +207,7 @@ def Dk_old(cells, degeneracy, D, kFrac):
 def Hk(cells, H, kFrac):
     kr = 2 * np.pi * np.einsum("ab,...b ->...a", cells, kFrac)
     Hk = np.einsum("...a,abc->...bc",  np.exp(1j * kr), H)
+    # print(sc.linalg.ishermitian(Hk, atol=1e-10))
     return Hk 
 
 """ interpolates dipole operator to fractional k-point using the new interpolation scheme

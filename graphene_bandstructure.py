@@ -23,35 +23,42 @@ def parse_dftb_band(filepath, n_bands):
 
 def orthogonalize_basis(lattice, cells, degeneracy, Hr, Sr, Rr):
     segments, labels = parsePath("GMKG", lattice=lattice, labelToK=MoS2_labelToK)
-    bands1 = []
-    bands2 = []
+    bands_orth = []
+    bands_direct = []
+    dipole_moment = []
+    S_eigvals = []
     for i, (kPoints, relPos) in enumerate(segments):
         Hk = w90.Hk(cells=cells,H=Hr, kFrac=kPoints)
         Sk = w90.Hk(cells=cells, H=Sr, kFrac=kPoints)
+        vals_S,vecs = sc.linalg.eigh(Sk)
         # for ki in range(len(kPoints)):
-        #     print(sc.linalg.ishermitian(Hk[ki]))
-        #     print(sc.linalg.ishermitian(Sk[ki]))
+        #     print(sc.linalg.ishermitian(Hk[ki], atol=1e-10))
+        #     print(sc.linalg.ishermitian(Sk[ki], atol=1e-10))
         Rk = w90.Dk(cells=cells, D=Rr, kFrac=kPoints)
-        # S_minushalf = loewdin_orth(Sk)
-        S_minushalf = svd_inverse_sqrt(Sk)
-        S_minushalf_partial = partial_Sminushalf(Sr, kPoints=kPoints)
-        Hk_orth = S_minushalf @ Hk @ S_minushalf
-        S_minushalf_dagger = np.transpose(S_minushalf.conj(), axes=(0,2,1))
-        Rk_orth = np.einsum('kab,kbc,kcd,z->kadz', S_minushalf_dagger, Sk, S_minushalf_partial, np.ones(3)) + np.einsum('kab,kbcd,kce->kaed',S_minushalf_dagger, Rk, S_minushalf)
-        for ki in range(np.shape(Hk_orth)[0]):
-            # print(sc.linalg.ishermitian(S_minushalf[ki]))
-            # print(sc.linalg.ishermitian(Hk_orth[ki]))
-            print(np.allclose(Sk[ki] @ S_minushalf[ki] @ S_minushalf[ki], np.eye(8)))
+        S_inv_sqrt = diagonalization_inv_sqrt(Sk)
+        S_inv_sqrt_partial = partial_Sminushalf(Sr, kPoints=kPoints)
+        Hk_orth = S_inv_sqrt @ Hk @ S_inv_sqrt
+        S_minushalf_dagger = np.transpose(S_inv_sqrt.conj(), axes=(0,2,1))
+        Rk_orth = np.einsum('kab,kbc,kcd,z->kadz', S_minushalf_dagger, Sk, S_inv_sqrt_partial, np.ones(3)) + np.einsum('kab,kbcd,kce->kaed',S_minushalf_dagger, Rk, S_inv_sqrt)
+        # for ki in range(np.shape(Hk_orth)[0]):
+        #     print(sc.linalg.ishermitian(S_inv_sqrt[ki], atol=1e-10))
+            # print(sc.linalg.ishermitian(Hk_orth[ki], atol=1e-10))
+            # print(np.allclose(Sk[ki] @ S_inv_sqrt[ki] @ S_inv_sqrt[ki], np.eye(8), atol=1e-10))
         vals, vecs = sc.linalg.eigh(Hk_orth)
         vals1, vecs1 = sc.linalg.eig(Hk, Sk)
-        bands1.append(np.real(vals))
-        bands2.append(np.real(vals1))
-    return segments, labels, bands1, bands2
+        bands_orth.append(np.real(vals))
+        bands_direct.append(np.real(vals1))
+        dipole_moment.append(Rk_orth)
+        S_eigvals.append(vals_S)
+
+    return segments, labels, bands_orth, bands_direct, dipole_moment, S_eigvals
 
 
-def partial_Sminushalf(Sr, kPoints):
+def partial_Sminushalf(Sr, kPoints, component):
     stencil_shift_factor = 0.001
-    stencil_shift = stencil_shift_factor * (kPoints[1] - kPoints[0])
+    basis_vec = np.zeros((3,))
+    basis_vec[component] = 1
+    stencil_shift = stencil_shift_factor * basis_vec
     kPoints_plus = kPoints + stencil_shift 
     kPoints_minus = kPoints - stencil_shift
     kPoints_2plus = kPoints + 2 * stencil_shift
@@ -60,54 +67,47 @@ def partial_Sminushalf(Sr, kPoints):
     S_minus = w90.Hk(cells=cells, H=Sr, kFrac=kPoints_minus)
     S_2plus = w90.Hk(cells=cells, H=Sr, kFrac=kPoints_2plus)
     S_2minus = w90.Hk(cells=cells, H=Sr, kFrac=kPoints_2minus)
-    Shalf_plus = svd_inverse_sqrt(S_plus)
-    Shalf_minus = svd_inverse_sqrt(S_minus)
-    Shalf_2plus = svd_inverse_sqrt(S_2plus)
-    Shalf_2minus = svd_inverse_sqrt(S_2minus)
+    Shalf_plus = diagonalization_inv_sqrt(S_plus)
+    Shalf_minus = diagonalization_inv_sqrt(S_minus)
+    Shalf_2plus = diagonalization_inv_sqrt(S_2plus)
+    Shalf_2minus = diagonalization_inv_sqrt(S_2minus)
     derivative = (8 * Shalf_plus - 8 * Shalf_minus + Shalf_2minus - Shalf_2plus)/(12 * np.linalg.norm(stencil_shift, axis=-1))
     return derivative
 
 
 
-def loewdin_orth(Sk):
+def diagonalization_inv_sqrt(Sk):
     vals, vecs = sc.linalg.eig(Sk)
     U = vecs
-    Udagger = np.transpose(vecs.conj(), axes=(0,2,1))
+    Udagger = np.linalg.matrix_transpose(vecs.conj())
     minus_half = 1/np.sqrt(vals) 
     N,M = vals.shape
-    diags_minushalf = np.zeros((N,M,M))
+    diags_minushalf = np.zeros((N,M,M), dtype=complex)
     idx = np.arange(M)
     diags_minushalf[:,idx, idx] = minus_half
-    S_minushalf = np.einsum('kab, kbc, kcd -> kad', Udagger, diags_minushalf, U)
+    S_minushalf = np.einsum('kab, kbc, kcd -> kad', U, diags_minushalf, Udagger)
     return S_minushalf
 
-def svd_inverse_sqrt(Sk):
-    U, s, Vh = np.linalg.svd(Sk)
-    # Build σ^{-1/2} for each k
-    inv_s_half = np.zeros_like(Sk)
-    idx = np.arange(Sk.shape[1])
-    inv_s_half[:, idx, idx] = 1 / np.sqrt(s)
-    # S^{-1/2} = V Σ^{-1/2} U†   (general case)
-    return Vh.conj().transpose(0,2,1) @ inv_s_half @ U.conj().transpose(0,2,1)
-
-def calculate_spectrum(bands, position):
-    omega = 
+# def calculate_spectrum(bands, position):
+#     omega = 
 
 
-dir_path = "alex_params"
+# dir_path = "alex_params"
 # dir_path = "pbc_params"
 # dir_path = "pbc_cutoff_corrected"
 # read seedname_tb.dat with read_tb -> realspace matrices for different lattice vectors
 # use Hk or Dk to convert realspace to reciprocal space matrices for given k-point 
 # get k-points of interest with parsePath
 # for each k point calculate r in orthogonal basis by löwdin othogonalization
-lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb(dir_path+"/seedname_tb.dat")
+# lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb(dir_path+"/seedname_tb.dat")
+lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
 MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
              'M' : np.array([0.5, 0, 0]),
              'K' : np.array([1/3, 1/3, 0]),
             }
-segments, labels, bands1, bands2 =  orthogonalize_basis(lattice, cells, degeneracy, Hr, Sr, Rr)
-# print(np.shape(bands1))
+segments, labels, bands1, bands2, Rk_orth, S_eigvals =  orthogonalize_basis(lattice, cells, degeneracy, Hr, Sr, Rr)
+print(np.shape(Rk_orth))
+print(np.shape(bands1))
 # segments, labels = parsePath("GMKG", lattice, labelToK=MoS2_labelToK)
 
 # vals_dftb = parse_dftb_band(dir_path+"/band.out", 8)
@@ -120,8 +120,12 @@ for i, (kPoints, relPos) in enumerate(segments):
     # vals, vecs = sp.linalg.eig(Hk, Sk)
     # ax.plot(relPos, vals_dftb[i], '.', color="blue", ms=1)
     # ax.plot(relPos, vals, '.', color='orange', ms=1)
-    ax.plot(relPos, bands1[i], '.', color='blue',ms=1)
-    ax.plot(relPos, bands2[i], '.', color='orange', ms=1)
+    # ax.plot(relPos, bands1[i], '.', color='blue',ms=1)
+    # ax.plot(relPos, bands2[i], '.', color='orange', ms=1)
+    ax.plot(relPos, S_eigvals[i], '.', color='orange', ms=1)
+    Rk = Rk_orth[i]
+    print(np.shape(Rk[:,0,0,0]))
+    # ax.plot(relPos, Rk[:,1,0,0], '.', ms=1)
 fig.tight_layout()
 l, pos = zip(*labels)
 orthogonalize_basis(lattice, cells, degeneracy, Hr, Sr, Rr)
