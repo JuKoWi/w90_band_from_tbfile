@@ -22,6 +22,11 @@ def symmetrizeMatrixElements(cells, H, R):
         for d in range(3):
             Rn[i, :, :, d] = 0.5 * (R[i, :, :, d] + R[reflectedIndex, :, :, d].conj().T)
     return Hn, Rn
+
+def angstrom_to_bohr(angstrom):
+    meter = angstrom * sc.constants.angstrom
+    bohr = meter / sc.constants.physical_constants['atomic unit of length'][0]
+    return bohr
     
 
 ###########################
@@ -41,12 +46,13 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
         return
     with open(origFname, "r") as f:
         f.readline() # header
-        lattice = np.empty((3,3))
+        lattice_ang = np.empty((3,3))
         for i in range(3):
             gv = f.readline() # grid vectors
-            lattice[i] = np.array([float(g) for g in gv.split()])
+            lattice_ang[i] = np.array([float(g) for g in gv.split()])
+        lattice_au = angstrom_to_bohr(lattice_ang)
         if onlyLattice:
-            return lattice
+            return lattice_au
         numWann = int(f.readline())
         nR = int(f.readline())
         degeneracy = []
@@ -91,7 +97,7 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
         H, R = symmetrizeMatrixElements(cells, H, R)
     # for ri in range(nR):
     #     print(sc.linalg.ishermitian(H[ri]))
-    return lattice, cells, degeneracy, H, S, R
+    return lattice_au, cells, degeneracy, H, S, R
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
 def read_wsvec(fname):
