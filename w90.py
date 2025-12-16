@@ -27,6 +27,12 @@ def angstrom_to_bohr(angstrom):
     meter = angstrom * sc.constants.angstrom
     bohr = meter / sc.constants.physical_constants['atomic unit of length'][0]
     return bohr
+
+def eV_to_au(eV):
+    return eV/sc.constants.physical_constants['Hartree energy in eV'][0]
+
+def au_to_eV(au):
+    return au * sc.constants.physical_constants['Hartree energy in eV'][0]
     
 
 ###########################
@@ -95,9 +101,9 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
                     R[ri, aS, bS] = rReal + 1j * rImag
     if symmetrize:
         H, R = symmetrizeMatrixElements(cells, H, R)
-    # for ri in range(nR):
-    #     print(sc.linalg.ishermitian(H[ri]))
-    return lattice_au, cells, degeneracy, H, S, R
+    H_au = eV_to_au(H)
+    R_au = angstrom_to_bohr(eV_to_au(R))
+    return lattice_au, cells, degeneracy, H_au, S, R_au 
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
 def read_wsvec(fname):

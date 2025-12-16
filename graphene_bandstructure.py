@@ -3,7 +3,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sc
-from bandstructure import parsePath,plotLines
+# from bandstructure import parsePath,plotLines
 
 def parse_dftb_band(filepath, n_bands):
     with open(file=filepath, mode='r') as f:
@@ -21,36 +21,39 @@ def parse_dftb_band(filepath, n_bands):
                 bandstructure.append(k_point_levels)
     return np.array(bandstructure)
 
-# def orthogonalize_basis(lattice, cells, Hr, Sr, Rr):
-#     segments, labels = parsePath("GMKG", lattice=lattice, labelToK=MoS2_labelToK)
-#     bands_orth = []
-#     R_orth = []
-#     H_orth = []
-#     S_orth = []
-#     for i, (kPoints, relPos) in enumerate(segments):
-#         Hk = w90.Hk(cells=cells,H=Hr, kFrac=kPoints)
-#         Sk = w90.Hk(cells=cells, H=Sr, kFrac=kPoints)
-#         vals_S,vecs = sc.linalg.eigh(Sk)
-#         # for ki in range(len(kPoints)):
-#         #     print(sc.linalg.ishermitian(Hk[ki], atol=1e-10))
-#         #     print(sc.linalg.ishermitian(Sk[ki], atol=1e-10))
-#         Rk = w90.Dk(cells=cells, D=Rr, kFrac=kPoints)
-#         print(Rk.shape)
-#         S_inv_sqrt = diagonalization_inv_sqrt(Sk)
-#         S_inv_sqrt_grad = gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice)
-#         Hk_orth = S_inv_sqrt @ Hk @ S_inv_sqrt
-#         Sk_orth = S_inv_sqrt @ Sk @ S_inv_sqrt
-#         Rk_orth = np.einsum('kab,kbc,kcdz->kadz', S_minushalf_dagger, Sk, S_inv_sqrt_grad) + np.einsum('kab,kbcz,kcd->kadz',S_minushalf_dagger, Rk, S_inv_sqrt)
-#         # for ki in range(np.shape(Hk_orth)[0]):
-#         #     print(sc.linalg.ishermitian(S_inv_sqrt[ki], atol=1e-10))
-#            # print(sc.linalg.ishermitian(Hk_orth[ki], atol=1e-10))
-#             # print(np.allclose(Sk[ki] @ S_inv_sqrt[ki] @ S_inv_sqrt[ki], np.eye(8), atol=1e-10))
-#         vals, vecs = sc.linalg.eigh(Hk_orth)
-#         bands_orth.append(np.real(vals))
-#         H_orth.append(Hk_orth)
-#         S_orth.append(Sk_orth)
-#         R_orth.append(Rk_orth)
-#     return segments, labels, bands_orth, H_orth, S_orth, R_orth 
+def plotLines(ax, pos, labels):
+    for p in pos:
+        ax.axvline(x=p, color='k')
+    ax.set_xticks(pos, labels)
+    ax.set_xlim([pos[0], pos[-1]])
+    ax.set_ylabel("E [eV]", labelpad=-5)
+
+def parsePath(path, lattice, labelToK, pointsPerSegment=100):
+    """use this after w90.py"""
+    recipLattice = 2*np.pi * np.linalg.inv(lattice).T
+    segments = []
+    lastRelPos = 0
+    labels = [ [path[0], lastRelPos] ]
+    for s, e in zip(path[:-1], path[1:]):
+        if not s.isalpha() or not e.isalpha():
+            continue
+        if labels[-1][0] != s:
+            labels[-1][0] += "|" + s
+        start = labelToK[s]
+        end = labelToK[e]
+        h = np.linspace(0, 1, pointsPerSegment)
+        relPos = lastRelPos + h * np.linalg.norm(recipLattice.T @ (end-start))
+        kPoints = start + h[:, None] * (end-start)
+        segments.append( [kPoints, relPos] )
+        # print(f"{s} -> {e} : {kPoints[0]} -> {kPoints[-1]}")
+        lastRelPos = relPos[-1]
+        labels.append([e, lastRelPos])
+    # normalize pos
+    for s in segments:
+        s[1] /= lastRelPos
+    for l in labels:
+        l[1] /= lastRelPos
+    return segments, labels
 
 def orthogonalize_basis(lattice, cells, Hr, Sr, Rr):
     segments, labels = parsePath("GMKG", lattice=lattice, labelToK=MoS2_labelToK)
@@ -169,52 +172,93 @@ def diagonalization_inv_sqrt(Sk):
     return S_minushalf
 
 def to_bloch_basis(pk, Hk_orth):
-    vals, U= sc.linalg.eig(Hk_orth)
+    vals, U = sc.linalg.eigh(Hk_orth)
     U_dagger = np.linalg.matrix_transpose(U.conj())
-    return U @ pk @ U_dagger
+    pk_bloch = np.einsum('kab,kbcz,kcd->kadz', U_dagger, pk, U)
+    Hk_bloch = np.einsum('kab,kbc,kcd->kad', U_dagger, Hk_orth, U)
+    return pk_bloch, Hk_bloch 
 
-def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice):
+def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx):
     pk = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints, cells=cells, lattice=lattice)
     Sk_orth, Hk_orth, Rk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
-    pk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth) 
+    num_k = np.shape(kPoints)[0]
+    pk_bloch, Hk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth) 
+    N_bands = np.shape(Sk_orth)[1]
+    bands = np.real(np.einsum('kaa->ka', Hk_bloch))
+    upper_omega = w90.eV_to_au(range_omega[1])
+    lower_omega = w90.eV_to_au(range_omega[0])
+    omega = np.linspace(start=lower_omega, stop=upper_omega, num=1000)
+    eps_tens = np.zeros((3,3,np.shape(omega)[0]), dtype=complex)
+    cond_bands = N_bands - (valence_idx + 1)
+    N_excite = cond_bands * (valence_idx + 1)
+    M_alpha = np.zeros((num_k, 3, N_excite), dtype=complex)
+    M_beta = np.zeros((num_k, 3, N_excite), dtype=complex)
+    delta_E = np.zeros((num_k, N_excite))
+    count_excite = 0
+    for i in range(valence_idx + 1):
+        for j in range(valence_idx+1, N_bands):
+            M_alpha[:,:, count_excite] = pk_bloch[:,j,i,:]
+            M_beta[:,:, count_excite] = pk_bloch[:,j,i,:].conj()
+            delta_E[:,count_excite] = bands[:,j] - bands[:,i]
+            count_excite += 1
+    assert count_excite == N_excite
+    M_alpha_beta = np.einsum('kab,kcb->kacb', M_alpha, M_beta)
+    gamma = 0.0001
+    omega_reshaped = omega[:,np.newaxis, np.newaxis]
+    lorentz_term = gamma * omega_reshaped /(((delta_E[np.newaxis,:,:])**2 - omega_reshaped**2)**2 + gamma * omega_reshaped**2)
+    eps_tens = np.einsum('kabc,okc->oab', M_alpha_beta, lorentz_term)
+    omega_eV = w90.au_to_eV(omega)
+    return omega_eV, np.real(eps_tens)
 
-    for k in kPoints:
 
-            
+def k_grid(n_points):
+    x = np.linspace(-0.5, 0.5, num=n_points[0])
+    y = np.linspace(-0.5, 0.5, num=n_points[1])
+    z = np.linspace(-0.5, 0.5, num=n_points[2])
+    xv, yv, zv = np.meshgrid(x,y,z) 
+    xv = xv.flatten()
+    yv = yv.flatten()
+    zv = zv.flatten()
+    kpoints = np.column_stack((xv,yv,zv))
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(kpoints[:,0], kpoints[:,1], kpoints[:,2])
+    plt.show()
+    return kpoints
 
+if __name__ == "__main__":
+    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
+    MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
+                 'M' : np.array([0.5, 0, 0]),
+                 'K' : np.array([1/3, 1/3, 0]),
+                }
+    segments, labels, bands_orth, H_orth, S_orth, R_orth =  orthogonalize_basis(lattice, cells, Hr, Sr, Rr)
+    omega, eps_tens = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(40,40,1)), lattice=lattice, cells=cells, range_omega=(0, 30), valence_idx=3)
+    plt.plot(omega, eps_tens[:,0,0], '.', ms=1)
+    plt.plot(omega, eps_tens[:,1,1], '.', ms=1)
+    plt.plot(omega, eps_tens[:,2,2], '.', ms=1)
+    plt.show()
 
-
-lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
-
-
-MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
-             'M' : np.array([0.5, 0, 0]),
-             'K' : np.array([1/3, 1/3, 0]),
-            }
-segments, labels, bands_orth, H_orth, S_orth, R_orth =  orthogonalize_basis(lattice, cells, Hr, Sr, Rr)
-fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-scale = 800
-for i, (kPoints, relPos) in enumerate(segments):
-    # Hk = w90.Hk(cells=cells,H=Hr, kFrac=kPoints)
-    # Sk = w90.Hk(cells=cells, H=Sr, kFrac=kPoints)
-    # vals, vecs = sp.linalg.eig(Hk, Sk)
-    # ax.plot(relPos, vals_dftb[i], '.', color="blue", ms=1)
-    # ax.plot(relPos, vals, '.', color='orange', ms=1)
-    ax.plot(relPos, bands_orth[i], '.', color='blue',ms=1)
-    # ax.plot(relPos, bands2[i], '.', color='orange', ms=1)
-    # ax.plot(relPos, S_eigvals[i], '.', color='orange', ms=1)
-    Rk = R_orth[i]
-    # print(np.shape(Rk[:,0,0,0]))
-    # ax.plot(relPos, Rk[:,0,0,0], '.', color='orange', ms=1)
-    # ax.plot(relPos, Rk[:,0,0,1], '.', color='blue',  ms=1)
-    # ax.plot(relPos, Rk[:,0,0,2], '.', color='green', ms=1)
-
-fig.tight_layout()
-l, pos = zip(*labels)
-point_symbols = []
-for i in labels:
-    point_symbols.append(i[0])
-plotLines(ax=ax, pos=pos, labels=point_symbols)
-plt.show()
-
-get_momentum(Hr=Hr, Sr=Sr, Rr=Rr, kPoints=[[0,0,0]], cells=cells, lattice=lattice)
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    scale = 800
+    for i, (kPoints, relPos) in enumerate(segments):
+        # Hk = w90.Hk(cells=cells,H=Hr, kFrac=kPoints)
+        # Sk = w90.Hk(cells=cells, H=Sr, kFrac=kPoints)
+        # vals, vecs = sp.linalg.eig(Hk, Sk)
+        # ax.plot(relPos, vals_dftb[i], '.', color="blue", ms=1)
+        # ax.plot(relPos, vals, '.', color='orange', ms=1)
+        ax.plot(relPos, bands_orth[i], '.', color='blue',ms=1)
+        # ax.plot(relPos, bands2[i], '.', color='orange', ms=1)
+        # ax.plot(relPos, S_eigvals[i], '.', color='orange', ms=1)
+        Rk = R_orth[i]
+        # print(np.shape(Rk[:,0,0,0]))
+        # ax.plot(relPos, Rk[:,0,0,0], '.', color='orange', ms=1)
+        # ax.plot(relPos, Rk[:,0,0,1], '.', color='blue',  ms=1)
+        # ax.plot(relPos, Rk[:,0,0,2], '.', color='green', ms=1)
+    fig.tight_layout()
+    l, pos = zip(*labels)
+    point_symbols = []
+    for i in labels:
+        point_symbols.append(i[0])
+    plotLines(ax=ax, pos=pos, labels=point_symbols)
+    # plt.show()
