@@ -26,7 +26,7 @@ def plotLines(ax, pos, labels):
         ax.axvline(x=p, color='k')
     ax.set_xticks(pos, labels)
     ax.set_xlim([pos[0], pos[-1]])
-    ax.set_ylabel("E [eV]", labelpad=-5)
+    ax.set_ylabel("E [Eh]", labelpad=-5)
 
 def parsePath(path, lattice, labelToK, pointsPerSegment=100):
     """use this after w90.py"""
@@ -178,7 +178,7 @@ def to_bloch_basis(pk, Hk_orth):
     Hk_bloch = np.einsum('kab,kbc,kcd->kad', U_dagger, Hk_orth, U)
     return pk_bloch, Hk_bloch 
 
-def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx):
+def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
     pk = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints, cells=cells, lattice=lattice)
     Sk_orth, Hk_orth, Rk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
     num_k = np.shape(kPoints)[0]
@@ -187,7 +187,7 @@ def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, va
     bands = np.real(np.einsum('kaa->ka', Hk_bloch))
     upper_omega = w90.eV_to_au(range_omega[1])
     lower_omega = w90.eV_to_au(range_omega[0])
-    omega = np.linspace(start=lower_omega, stop=upper_omega, num=1000)
+    omega = np.linspace(start=lower_omega, stop=upper_omega, num=10000)
     eps_tens = np.zeros((3,3,np.shape(omega)[0]), dtype=complex)
     cond_bands = N_bands - (valence_idx + 1)
     N_excite = cond_bands * (valence_idx + 1)
@@ -203,12 +203,12 @@ def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, va
             count_excite += 1
     assert count_excite == N_excite
     M_alpha_beta = np.einsum('kab,kcb->kacb', M_alpha, M_beta)
-    gamma = 0.0001
+    gamma = w90.eV_to_au(gamma_eV)
     omega_reshaped = omega[:,np.newaxis, np.newaxis]
     lorentz_term = gamma * omega_reshaped /(((delta_E[np.newaxis,:,:])**2 - omega_reshaped**2)**2 + gamma * omega_reshaped**2)
     eps_tens = np.einsum('kabc,okc->oab', M_alpha_beta, lorentz_term)
     omega_eV = w90.au_to_eV(omega)
-    return omega_eV, np.real(eps_tens)
+    return omega_eV, np.real(eps_tens) 
 
 
 def k_grid(n_points):
@@ -220,10 +220,10 @@ def k_grid(n_points):
     yv = yv.flatten()
     zv = zv.flatten()
     kpoints = np.column_stack((xv,yv,zv))
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-    ax.scatter(kpoints[:,0], kpoints[:,1], kpoints[:,2])
-    plt.show()
+    # fig = plt.figure()
+    # ax = fig.add_subplot(projection='3d')
+    # ax.scatter(kpoints[:,0], kpoints[:,1], kpoints[:,2])
+    # plt.show()
     return kpoints
 
 if __name__ == "__main__":
@@ -233,7 +233,8 @@ if __name__ == "__main__":
                  'K' : np.array([1/3, 1/3, 0]),
                 }
     segments, labels, bands_orth, H_orth, S_orth, R_orth =  orthogonalize_basis(lattice, cells, Hr, Sr, Rr)
-    omega, eps_tens = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(40,40,1)), lattice=lattice, cells=cells, range_omega=(0, 30), valence_idx=3)
+
+    omega, eps_tens = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(10,10,1)), lattice=lattice, cells=cells, range_omega=(0, 30), valence_idx=3, gamma_eV=0.001)
     plt.plot(omega, eps_tens[:,0,0], '.', ms=1)
     plt.plot(omega, eps_tens[:,1,1], '.', ms=1)
     plt.plot(omega, eps_tens[:,2,2], '.', ms=1)
@@ -261,4 +262,4 @@ if __name__ == "__main__":
     for i in labels:
         point_symbols.append(i[0])
     plotLines(ax=ax, pos=pos, labels=point_symbols)
-    # plt.show()
+    plt.show()
