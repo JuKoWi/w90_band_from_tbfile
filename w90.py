@@ -219,7 +219,7 @@ def Dk_old(cells, degeneracy, D, kFrac):
 def Hk(cells, H, kFrac):
     kr = 2 * np.pi * np.einsum("ab,...b ->...a", cells, kFrac)
     Hk = np.einsum("...a,abc->...bc",  np.exp(1j * kr), H)
-    # print(sc.linalg.ishermitian(Hk, atol=1e-10))
+    Hk /= cells.shape[0] 
     return Hk 
 
 """ interpolates dipole operator to fractional k-point using the new interpolation scheme
@@ -228,9 +228,15 @@ def Hk(cells, H, kFrac):
 def Dk(cells, D, kFrac):
     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
     Dk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), D)
+    Dk /= cells.shape[0]
     return Dk
 
-def myfunc(a):
-    return 5
+def grad_H(cells, H, kFrac, lattice):
+    kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
+    R_cart = cells @ lattice
+    grad_H = 1j * np.einsum("...a, abc, az -> ...bcz", np.exp(1j * kr), H, R_cart)
+    grad_H /= cells.shape[0]
+    return grad_H
+
 
 
