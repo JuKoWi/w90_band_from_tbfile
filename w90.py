@@ -27,7 +27,12 @@ def symmetrizeMatrixElements(cells, H, R):
 def angstrom_to_bohr(angstrom):
     meter = angstrom * sc.constants.angstrom
     bohr = meter / sc.constants.physical_constants['atomic unit of length'][0]
-    return bohr
+    return bohr 
+
+def bohr_to_angstrom(bohr):
+    meter = bohr * sc.constants.physical_constants['atomic unit of length'][0] 
+    angstrom = meter / sc.constants.angstrom
+    return angstrom
 
 def eV_to_au(eV):
     return eV/sc.constants.physical_constants['Hartree energy in eV'][0]

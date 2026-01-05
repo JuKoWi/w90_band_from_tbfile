@@ -88,15 +88,15 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
 def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
     Sk_orth, Hk_orth, Rk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
     Dk_orth = Rk_orth 
-    # grad = gradient_H(Hr=Hr, kPoints=kPoints, lattice=lattice)
-    grad2 = w90.grad_H(cells=cells, H=Hr, kFrac=kPoints, lattice=lattice)
+    # grad2 = w90.grad_H(cells=cells, H=Hr, kFrac=kPoints, lattice=lattice) #can't use analytical grad directly, wrong basis
+    grad = gradient_H(Hr=Hr, kPoints=kPoints, lattice=lattice)
     # assert np.allclose(grad, grad2)
     commutator = np.einsum('kabz, kbc->kacz', Dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, Dk_orth)
-    p = commutator + 1j* grad2
+    p = commutator + 1j* grad
     return p, Sk_orth, Hk_orth
 
 def partial_Hk(Hr, kPoints, component):
-    stencil_shift_factor = 0.001
+    stencil_shift_factor = 0.0001
     basis_vec = np.zeros((3,))
     basis_vec[component] = 1
     stencil_shift = stencil_shift_factor * basis_vec
@@ -112,7 +112,7 @@ def partial_Hk(Hr, kPoints, component):
     return derivative
 
 def partial_Sminushalf(Sr, kPoints, component):
-    stencil_shift_factor = 0.001
+    stencil_shift_factor = 0.00001
     basis_vec = np.zeros((3,))
     basis_vec[component] = 1
     stencil_shift = stencil_shift_factor * basis_vec
@@ -133,8 +133,6 @@ def partial_Sminushalf(Sr, kPoints, component):
 
 def gradient_H(Hr, kPoints, lattice):
     """Returns array of shape (kpoints, basis, basis, components)"""
-    # rec_lattice = get_rec_lattice(lattice=lattice)
-    # cart_to_rec_lattice = rec_lattice.T
     Ha = partial_Hk(Hr=Hr, kPoints=kPoints, component=0)
     Hb = partial_Hk(Hr=Hr, kPoints=kPoints, component=1)
     Hc = partial_Hk(Hr=Hr, kPoints=kPoints, component=2)
@@ -182,9 +180,9 @@ def to_bloch_basis(pk, Hk_orth):
     return pk_bloch, Hk_bloch 
 
 def k_grid(n_points):
-    x = np.linspace(-0.5, 0.5, num=n_points[0])
-    y = np.linspace(-0.5, 0.5, num=n_points[1])
-    z = np.linspace(-0.5, 0.5, num=n_points[2])
+    x = np.linspace(-0.5, 0.5, num=n_points[0], endpoint=False)
+    y = np.linspace(-0.5, 0.5, num=n_points[1], endpoint=False)
+    z = np.linspace(-0.5, 0.5, num=n_points[2], endpoint=False)
     xv, yv, zv = np.meshgrid(x,y,z) 
     xv = xv.flatten()
     yv = yv.flatten()
@@ -197,6 +195,8 @@ def k_grid(n_points):
     return kpoints
 
 def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+    """RAM inefficient but rather optimized"""
+    start = time.time()
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints, cells=cells, lattice=lattice)
     pk_bloch, Hk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth) 
     N_bands = np.shape(Sk_orth)[1]
@@ -222,38 +222,42 @@ def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, va
     M_alpha_beta = np.einsum('kab,kcb->kacb', M_alpha, M_beta)
     gamma = w90.eV_to_au(gamma_eV)
     omega_reshaped = omega[:,np.newaxis, np.newaxis]
-    lorentz_term = gamma * omega_reshaped /(((delta_E[np.newaxis,:,:])**2 - omega_reshaped**2)**2 + gamma * omega_reshaped**2)
-    eps_tens = np.einsum('kabc,okc->oab', M_alpha_beta, lorentz_term)
+    lorentz_term = gamma * omega_reshaped /(((delta_E[np.newaxis,:,:])**2 - omega_reshaped**2)**2 + gamma**2 * omega_reshaped**2)
+    eps_tens = np.einsum('kabc,okc, kc->oab', M_alpha_beta, lorentz_term, 1/delta_E)
     omega_eV = w90.au_to_eV(omega)
+    end = time.time()
+    print(f"Calculation took {end - start} s")
     return omega_eV, np.real(eps_tens) 
 
-def absorption_spectrum_optimized(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+def get_absorption_spectrum_optimized(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
     start = time.time()
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
     pk_bloch, Hk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth)
     Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
     bands = np.real(np.einsum('kaa->ka', Hk_bloch))
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),10000)
+    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
     Nomega = omega.size
-    eps_tens = np.zeros((Nomega, 3, 3))
+    eps_tens = np.zeros((Nomega, 3, 3), dtype=complex)
     gamma = w90.eV_to_au(gamma_eV)
     omega2 = omega**2 
     for i in range(valence_idx + 1):
         for j in range(valence_idx + 1, Nb):
             dE = bands[:, j] - bands[:, i]      # (Nk,)
             p = pk_bloch[:, j, i, :]             # (Nk, 3)
-            M_ab = np.real(np.einsum('ka,kb->abk', p, p.conj(), optimize=True))
+            M_ab = np.einsum('ka,kb->abk', p, p.conj(), optimize=True)
             denom = ((dE[None, :]**2 - omega2[:, None])**2
-                     + gamma * omega2[:, None])
-            lorentz = gamma * omega[:, None] / denom   # (Nω, Nk)
-            eps_tens += np.einsum('abk,ok->oab', M_ab, lorentz)
+                     + gamma**2 * omega2[:, None])
+            lorentz = gamma * omega[:, None] / denom   # (Nomega, Nk)
+            eps_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
+    eps_tens = np.real(eps_tens)
     end = time.time()
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), eps_tens
 
-def absorption_spectrum_koptimized(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+def absorption_spectrum_kloop(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+    """loop over k-axis for lower RAM """
     start = time.time()
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),10000)
+    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
     omega2 = omega**2
     Nomega = omega.size
     gamma = w90.eV_to_au(gamma_eV)
@@ -267,22 +271,18 @@ def absorption_spectrum_koptimized(Sr, Hr, Rr, kPoints, lattice, cells, range_om
             for j in range(valence_idx +1, Nb):
                 dE = bands[j] - bands[i]
                 p = pk_bloch[0,j,i,:]
-                M_ab = np.real(np.einsum('a,b->ab', p, p.conj()))
-                denom = ((dE**2 - omega2)**2 + gamma * omega2)
+                M_ab = np.real(np.einsum('a,b->ab', p, p.conj()))/dE
+                denom = ((dE**2 - omega2)**2 + gamma**2 * omega2)
                 lorentz = gamma * omega /denom
                 eps_tens += np.einsum('ab, o -> oab', M_ab, lorentz)
     end = time.time()
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), eps_tens
 
-
-
-
 if __name__ == "__main__":
     """
-    rewrite fourier transform (not possible?)
-    check analytical gradient
-    optimize absorption spectrum
+    write everything down
+    S_inv_sqrt with pade series
     write sanity checks"""
     lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
     MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
@@ -293,12 +293,17 @@ if __name__ == "__main__":
     bands_alex = parse_dftb_band(filepath="alex_params/band.out", n_bands=8) 
     bands_alex = [bands_alex[:100], bands_alex[100:200], bands_alex[200:300]]
     
-    # omega, eps_tens = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(150,150,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.001)
-    omega, eps_tens = absorption_spectrum_koptimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(200,200,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.001)
-    omega, eps_tens = absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(200,200,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.001)
-    plt.plot(omega, eps_tens[:,0,0], '.', ms=1)
-    plt.plot(omega, eps_tens[:,1,1], '.', ms=1)
-    plt.plot(omega, eps_tens[:,2,2], '.', ms=1)
+    omega1, eps_tens1 = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50,50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.01)
+    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50,50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.01)
+    omega3, eps_tens3 = absorption_spectrum_kloop(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50,50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.01)
+    plt.plot(omega2, eps_tens1[:,0,0], '.', ms=1)
+    plt.plot(omega2, eps_tens1[:,1,1], '.', ms=1)
+    plt.show()
+    plt.plot(omega2, eps_tens2[:,0,0] - eps_tens1[:,0,0], '.', ms=1)
+    plt.plot(omega2, eps_tens2[:,1,1] - eps_tens1[:,1,1], '.', ms=1)
+    plt.show()
+    plt.plot(omega2, eps_tens3[:,0,0] - eps_tens1[:,0,0], '.', ms=1)
+    plt.plot(omega2, eps_tens3[:,1,1] - eps_tens1[:,1,1], '.', ms=1)
     plt.show()
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
