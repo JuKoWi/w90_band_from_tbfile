@@ -87,7 +87,7 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
 
 def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
     Sk_orth, Hk_orth, Rk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
-    Dk_orth = Rk_orth 
+    Dk_orth = Rk_orth # dk is exactly the FT of pos-operator
     # grad2 = w90.grad_H(cells=cells, H=Hr, kFrac=kPoints, lattice=lattice) #can't use analytical grad directly, wrong basis
     grad = gradient_H(Hr=Hr, kPoints=kPoints, lattice=lattice)
     # assert np.allclose(grad, grad2)
@@ -96,7 +96,7 @@ def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
     return p, Sk_orth, Hk_orth
 
 def partial_Hk(Hr, kPoints, component):
-    stencil_shift_factor = 0.0001
+    stencil_shift_factor = 0.00001
     basis_vec = np.zeros((3,))
     basis_vec[component] = 1
     stencil_shift = stencil_shift_factor * basis_vec
@@ -104,7 +104,7 @@ def partial_Hk(Hr, kPoints, component):
     kPoints_minus = kPoints - stencil_shift
     kPoints_2plus = kPoints + 2 * stencil_shift
     kPoints_2minus = kPoints - 2 * stencil_shift
-    H_plus = w90.Hk(cells=cells, H=Hr, kFrac=kPoints_plus)
+    H_plus = w90.Hk(cells=cells, H=Hr, kFrac=kPoints_plus) 
     H_minus = w90.Hk(cells=cells, H=Hr, kFrac=kPoints_minus)
     H_2plus = w90.Hk(cells=cells, H=Hr, kFrac=kPoints_2plus)
     H_2minus = w90.Hk(cells=cells, H=Hr, kFrac=kPoints_2minus)
@@ -136,29 +136,31 @@ def gradient_H(Hr, kPoints, lattice):
     Ha = partial_Hk(Hr=Hr, kPoints=kPoints, component=0)
     Hb = partial_Hk(Hr=Hr, kPoints=kPoints, component=1)
     Hc = partial_Hk(Hr=Hr, kPoints=kPoints, component=2)
+    rec_lat_inv= lattice/ (2 * np.pi) # equivalent to inverse of reciprocal lattice matrix. lattice has lattice vectors as rows
     grad_S_inv_sqrt = np.stack((Ha, Hb, Hc), axis=-1)
-    grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, lattice/(2*np.pi))
+    grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, rec_lat_inv)
     return grad_S_inv_sqrt
 
 def gradient_S_inv_sqrt(Sr, kPoints, lattice):
     """Returns array of shape (kpoints, basis, basis, components)"""
-    rec_lattice = get_rec_lattice(lattice=lattice)
-    canonical_to_rec_lattice = rec_lattice.T
-
+    rec_lat_inv= lattice/ (2 * np.pi) # equivalent to inverse of reciprocal lattice matrix. lattice has lattice vectors as rows
     Sa = partial_Sminushalf(Sr=Sr, kPoints=kPoints, component=0)
     Sb = partial_Sminushalf(Sr=Sr, kPoints=kPoints, component=1)
     Sc = partial_Sminushalf(Sr=Sr, kPoints=kPoints, component=2)
     grad_S_inv_sqrt = np.stack((Sa, Sb, Sc), axis=-1)
-    grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, canonical_to_rec_lattice)
+    grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, rec_lat_inv)
     return grad_S_inv_sqrt
 
 def get_rec_lattice(lattice):
+    """return matrix with rec. lattice vectors as columns
+        ATTENTION: Takes lattice as matrix with lattice vectors as ROWS(!)
+    """
     a1, a2, a3 = lattice
     volume = np.dot(a1, np.cross(a2, a3))
     b1 = 2 * np.pi * np.cross(a2, a3) / volume
     b2 = 2 * np.pi * np.cross(a3, a1) / volume
     b3 = 2 * np.pi * np.cross(a1, a2) / volume
-    return np.array([b1, b2, b3])
+    return np.array([b1, b2, b3]).T
 
 def diagonalization_inv_sqrt(Sk):
     vals, vecs = sc.linalg.eigh(Sk)
@@ -195,8 +197,11 @@ def k_grid(n_points):
     return kpoints
 
 def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
-    """RAM inefficient but rather optimized"""
+    """RAM inefficient but rather optimized
+        for 200x200 k and 5000 omega: 230 s, ca. 50GB RAM
+    """
     start = time.time()
+    Nk = kPoints.shape[0]
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints, cells=cells, lattice=lattice)
     pk_bloch, Hk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth) 
     N_bands = np.shape(Sk_orth)[1]
@@ -223,14 +228,19 @@ def get_absorption_spectrum(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, va
     gamma = w90.eV_to_au(gamma_eV)
     omega_reshaped = omega[:,np.newaxis, np.newaxis]
     lorentz_term = gamma * omega_reshaped /(((delta_E[np.newaxis,:,:])**2 - omega_reshaped**2)**2 + gamma**2 * omega_reshaped**2)
-    eps_tens = np.einsum('kabc,okc, kc->oab', M_alpha_beta, lorentz_term, 1/delta_E)
+    eps_tens = np.einsum('kabc,okc, kc->oab', M_alpha_beta, lorentz_term, 1/delta_E) / Nk
     omega_eV = w90.au_to_eV(omega)
     end = time.time()
     print(f"Calculation took {end - start} s")
     return omega_eV, np.real(eps_tens) 
 
 def get_absorption_spectrum_optimized(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+    """
+        for 200x200 k and 5000 omega: 203 s 
+    """
+    #TODO: Why constant result for 60 x 60 k-grid?
     start = time.time()
+    Nk = kPoints.shape[0]
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
     pk_bloch, Hk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth)
     Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
@@ -249,14 +259,16 @@ def get_absorption_spectrum_optimized(Sr, Hr, Rr, kPoints, lattice, cells, range
                      + gamma**2 * omega2[:, None])
             lorentz = gamma * omega[:, None] / denom   # (Nomega, Nk)
             eps_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
-    eps_tens = np.real(eps_tens)
+    eps_tens = np.real(eps_tens) / Nk
     end = time.time()
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), eps_tens
 
 def absorption_spectrum_kloop(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
-    """loop over k-axis for lower RAM """
+    """loop over k-axis for lower RAM 
+        for 200x200 k and 5000 omega: 203 s """
     start = time.time()
+    Nk = kPoints.shape[0]
     omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
     omega2 = omega**2
     Nomega = omega.size
@@ -275,6 +287,7 @@ def absorption_spectrum_kloop(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, 
                 denom = ((dE**2 - omega2)**2 + gamma**2 * omega2)
                 lorentz = gamma * omega /denom
                 eps_tens += np.einsum('ab, o -> oab', M_ab, lorentz)
+    eps_tens /= Nk
     end = time.time()
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), eps_tens
@@ -284,6 +297,7 @@ if __name__ == "__main__":
     write everything down
     S_inv_sqrt with pade series
     write sanity checks"""
+    print("Start script")
     lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
     MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
                  'M' : np.array([0.5, 0, 0]),
@@ -293,18 +307,30 @@ if __name__ == "__main__":
     bands_alex = parse_dftb_band(filepath="alex_params/band.out", n_bands=8) 
     bands_alex = [bands_alex[:100], bands_alex[100:200], bands_alex[200:300]]
     
-    omega1, eps_tens1 = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50,50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.01)
-    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50,50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.01)
-    omega3, eps_tens3 = absorption_spectrum_kloop(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50,50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.01)
-    plt.plot(omega2, eps_tens1[:,0,0], '.', ms=1)
-    plt.plot(omega2, eps_tens1[:,1,1], '.', ms=1)
+    # omega1, eps_tens1 = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.1)
+    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.1)
+    # omega3, eps_tens3 = absorption_spectrum_kloop(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.1)
+    plt.plot(omega2, eps_tens2[:,0,0], 
+            #  '.',
+               ms=1)
+    plt.plot(omega2, eps_tens2[:,1,1], 
+            #  '.', 
+             ms=1)
     plt.show()
-    plt.plot(omega2, eps_tens2[:,0,0] - eps_tens1[:,0,0], '.', ms=1)
-    plt.plot(omega2, eps_tens2[:,1,1] - eps_tens1[:,1,1], '.', ms=1)
-    plt.show()
-    plt.plot(omega2, eps_tens3[:,0,0] - eps_tens1[:,0,0], '.', ms=1)
-    plt.plot(omega2, eps_tens3[:,1,1] - eps_tens1[:,1,1], '.', ms=1)
-    plt.show()
+    # plt.plot(omega1, eps_tens1[:,0,0], 
+    #         #  '.',
+    #            ms=1)
+    # plt.plot(omega1, eps_tens1[:,1,1], 
+    #         #  '.', 
+    #          ms=1)
+    # plt.show()
+    # plt.plot(omega3, eps_tens3[:,0,0], 
+    #         #  '.',
+    #            ms=1)
+    # plt.plot(omega3, eps_tens3[:,1,1], 
+    #         #  '.', 
+    #          ms=1)
+    # plt.show()
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     scale = 800
@@ -317,4 +343,4 @@ if __name__ == "__main__":
     for i in labels:
         point_symbols.append(i[0])
     plotLines(ax=ax, pos=pos, labels=point_symbols)
-    # plt.show()
+    plt.show()

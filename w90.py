@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 
 import numpy as np
 import os
@@ -108,7 +108,7 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
     if symmetrize:
         H, R = symmetrizeMatrixElements(cells, H, R)
     H_au = eV_to_au(H)
-    R_au = angstrom_to_bohr(eV_to_au(R))
+    R_au = angstrom_to_bohr(eV_to_au(R)) #Why did I convert from eV to Hartree here?
     return lattice_au, cells, degeneracy, H_au, S, R_au 
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
@@ -225,7 +225,7 @@ def Rk_old(cells, degeneracy, D, kFrac):
 def Hk(cells, H, kFrac):
     kr = 2 * np.pi * np.einsum("ab,...b ->...a", cells, kFrac)
     Hk = np.einsum("...a,abc->...bc",  np.exp(1j * kr), H)
-    Hk /= cells.shape[0] 
+    # Hk /= cells.shape[0] #where does this factor come from?
     return Hk 
 
 """ interpolates dipole operator to fractional k-point using the new interpolation scheme
@@ -234,46 +234,46 @@ def Hk(cells, H, kFrac):
 def Rk(cells, D, kFrac):
     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
     Dk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), D)
-    Dk /= cells.shape[0]
+    # Dk /= cells.shape[0] #where does this factor come from?
     return Dk
 
-def grad_H(cells, H, kFrac, lattice):
-    kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
-    R_cart = cells @ lattice
-    grad_H = 1j * 2 * np.pi * np.einsum("...a, abc, az -> ...bcz", np.exp(1j * kr), H, R_cart)
-    grad_H /= cells.shape[0]
-    return grad_H
+# def grad_H(cells, H, kFrac, lattice):
+#     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
+#     R_cart = cells @ lattice
+#     grad_H = 1j * 2 * np.pi * np.einsum("...a, abc, az -> ...bcz", np.exp(1j * kr), H, R_cart)
+#     # grad_H /= cells.shape[0]
+#     return grad_H
 
-def to_regular_grid(cells, H, S, D):
-    minx = np.min(cells[:,0])
-    miny = np.min(cells[:,1])
-    minz = np.min(cells[:,2])
-    maxx = np.max(cells[:,0])
-    maxy = np.max(cells[:,1])
-    maxz = np.max(cells[:,2])
-    Nx = maxx - minx + 1
-    Ny = maxy - miny + 1
-    Nz = maxz - minz + 1
-    numWann = np.shape(H)[1]
-    H_reg_grid = np.zeros((Nx, Ny, Nz, numWann, numWann), dtype=complex)
-    S_reg_grid = np.zeros((Nx, Ny, Nz, numWann, numWann), dtype=complex)
-    R_reg_grid = np.zeros((Nx, Ny, Nz, numWann, numWann, 3), dtype=complex)
-    lattice_offset = np.array([minx, miny, minz])
-    for i in range(np.shape(cells)[0]):
-        idx = cells[i,0] - minx
-        idy = cells[i,1] - miny
-        idz = cells[i,2] - minz
-        H_reg_grid[idx, idy, idz] = H[i]
-        S_reg_grid[idx, idy, idz] = S[i]
-        R_reg_grid[idx, idy, idz] = D[i]
-    return H_reg_grid, S_reg_grid, R_reg_grid, lattice_offset 
+# def to_regular_grid(cells, H, S, D):
+#     minx = np.min(cells[:,0])
+#     miny = np.min(cells[:,1])
+#     minz = np.min(cells[:,2])
+#     maxx = np.max(cells[:,0])
+#     maxy = np.max(cells[:,1])
+#     maxz = np.max(cells[:,2])
+#     Nx = maxx - minx + 1
+#     Ny = maxy - miny + 1
+#     Nz = maxz - minz + 1
+#     numWann = np.shape(H)[1]
+#     H_reg_grid = np.zeros((Nx, Ny, Nz, numWann, numWann), dtype=complex)
+#     S_reg_grid = np.zeros((Nx, Ny, Nz, numWann, numWann), dtype=complex)
+#     R_reg_grid = np.zeros((Nx, Ny, Nz, numWann, numWann, 3), dtype=complex)
+#     lattice_offset = np.array([minx, miny, minz])
+#     for i in range(np.shape(cells)[0]):
+#         idx = cells[i,0] - minx
+#         idy = cells[i,1] - miny
+#         idz = cells[i,2] - minz
+#         H_reg_grid[idx, idy, idz] = H[i]
+#         S_reg_grid[idx, idy, idz] = S[i]
+#         R_reg_grid[idx, idy, idz] = D[i]
+#     return H_reg_grid, S_reg_grid, R_reg_grid, lattice_offset 
 
-def Hk_fft_interp(H_reg, lattice_offset, k_points, cells):
-    Nk = np.shape(H_reg)[:3]
-    grid_pos = [np.fft.fftshift(np.fft.fftfreq(n, d=1/n)) for n in Nk]
-    grid = [np.flip(n) for n in grid_pos] #fft has opposite sign in exponent
-    Hk_grid = np.fft.fftn(a=H_reg, axes=(0,1,2))/np.shape(cells)[0]
-    Hk_grid = np.fft.fftshift(x=Hk_grid, axes=(0,1,2))
-    interp = RegularGridInterpolator(points=grid, values=Hk_grid)
-    offset_phase = np.exp(2 * np.pi * 1j * np.dot(lattice_offset, k_points))
-    return interp(k_points) * offset_phase 
+# def Hk_fft_interp(H_reg, lattice_offset, k_points, cells):
+#     Nk = np.shape(H_reg)[:3]
+#     grid_pos = [np.fft.fftshift(np.fft.fftfreq(n, d=1/n)) for n in Nk]
+#     grid = [np.flip(n) for n in grid_pos] #fft has opposite sign in exponent
+#     Hk_grid = np.fft.fftn(a=H_reg, axes=(0,1,2))/np.shape(cells)[0]
+#     Hk_grid = np.fft.fftshift(x=Hk_grid, axes=(0,1,2))
+#     interp = RegularGridInterpolator(points=grid, values=Hk_grid) # interpolation not necessary, shift by exp(ikR) in R-space
+#     offset_phase = np.exp(2 * np.pi * 1j * np.dot(lattice_offset, k_points))
+#     return interp(k_points) * offset_phase 
