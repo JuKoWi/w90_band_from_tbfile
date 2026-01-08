@@ -298,25 +298,28 @@ if __name__ == "__main__":
     S_inv_sqrt with pade series
     write sanity checks"""
     print("Start script")
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
+    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb_mos2_1.dat")
     MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
                  'M' : np.array([0.5, 0, 0]),
                  'K' : np.array([1/3, 1/3, 0]),
                 }
     segments, labels, bands_orth, H_orth, S_orth, R_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
-    bands_alex = parse_dftb_band(filepath="alex_params/band.out", n_bands=8) 
+    bands_alex = parse_dftb_band(filepath="band_mos2_alex_27band.out", n_bands=27) 
     bands_alex = [bands_alex[:100], bands_alex[100:200], bands_alex[200:300]]
+    bands_own = parse_dftb_band(filepath="band_mos2_own_27band_denssup_corrected_eigval.out", n_bands=27)
+    bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
+    
     
     # omega1, eps_tens1 = get_absorption_spectrum(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.1)
-    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.1)
+    # omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=5, gamma_eV=0.1)
     # omega3, eps_tens3 = absorption_spectrum_kloop(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 50), valence_idx=3, gamma_eV=0.1)
-    plt.plot(omega2, eps_tens2[:,0,0], 
-            #  '.',
-               ms=1)
-    plt.plot(omega2, eps_tens2[:,1,1], 
-            #  '.', 
-             ms=1)
-    plt.show()
+    # plt.plot(omega2, eps_tens2[:,0,0], 
+    #         #  '.',
+    #            ms=1)
+    # plt.plot(omega2, eps_tens2[:,1,1], 
+    #         #  '.', 
+    #          ms=1)
+    # plt.show()
     # plt.plot(omega1, eps_tens1[:,0,0], 
     #         #  '.',
     #            ms=1)
@@ -335,8 +338,9 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     scale = 800
     for i, (kPoints, relPos) in enumerate(segments):
-        ax.plot(relPos, w90.au_to_eV(bands_orth[i]), '.', color='blue',ms=1)
-        ax.plot(relPos, bands_alex[i]) 
+        # ax.plot(relPos, w90.au_to_eV(bands_orth[i]), '.', color='blue',ms=1)
+        ax.plot(relPos, bands_alex[i], color='blue') 
+        ax.plot(relPos, bands_own[i], color='red')
     fig.tight_layout()
     l, pos = zip(*labels)
     point_symbols = []
