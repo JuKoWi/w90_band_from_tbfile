@@ -48,6 +48,15 @@ def au_to_eV(au):
 """ Reads _tb file from wannier90 file. The units are eV and eV * Angstrom """
 """dont  use symmetrize"""
 def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
+    """Units in file:
+            lattice-vectors: Angstrom
+            H: eV
+            S: no unit
+            R: Angstrom
+        Return:
+            all atomic units
+
+    """
     origFname = None
     for fn in [fname, fname + "_tb.dat", fname + ".dat"]:
         if os.path.exists(fn):
@@ -108,7 +117,7 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
     if symmetrize:
         H, R = symmetrizeMatrixElements(cells, H, R)
     H_au = eV_to_au(H)
-    R_au = angstrom_to_bohr(eV_to_au(R)) #Why did I convert from eV to Hartree here?
+    R_au = angstrom_to_bohr(R) 
     return lattice_au, cells, degeneracy, H_au, S, R_au 
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
@@ -222,20 +231,18 @@ def Rk_old(cells, degeneracy, D, kFrac):
 """ interpolates Hamiltonian to fractional k-point using the new interpolation scheme
     Hint: data can be obtained by read_wsvectb
 """
-def Hk(cells, H, kFrac):
+def Hk(cells, Hr, kFrac):
     kr = 2 * np.pi * np.einsum("ab,...b ->...a", cells, kFrac)
-    Hk = np.einsum("...a,abc->...bc",  np.exp(1j * kr), H)
-    Hk /= cells.shape[0] #where does this factor come from?
+    Hk = np.einsum("...a,abc->...bc",  np.exp(1j * kr), Hr)
     return Hk 
 
 """ interpolates dipole operator to fractional k-point using the new interpolation scheme
     Hint: data can be obtained by read_wsvectb
 """
-def Rk(cells, D, kFrac):
+def Rk(cells, Rr, kFrac):
     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
-    Dk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), D)
-    Dk /= cells.shape[0] #where does this factor come from?
-    return Dk
+    Rk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), Rr)
+    return Rk
 
 # def grad_H(cells, H, kFrac, lattice):
 #     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
