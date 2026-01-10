@@ -65,17 +65,17 @@ def bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr):
     """gives all relevant quantities in an orthogonal basis to check for band structure"""
     segments, labels = parsePath("GMKG", lattice=lattice, labelToK=MoS2_labelToK)
     bands_orth = []
-    R_orth = []
+    d_orth = []
     H_orth = []
     S_orth = []
     for i, (kPoints, relPos) in enumerate(segments):
-        Sk_orth, Hk_orth, Rk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
+        Sk_orth, Hk_orth, dk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
         vals, vecs = sc.linalg.eigh(Hk_orth)
         bands_orth.append(np.real(vals))
         H_orth.append(Hk_orth)
         S_orth.append(Sk_orth)
-        R_orth.append(Rk_orth)
-    return segments, labels, bands_orth, H_orth, S_orth, R_orth 
+        d_orth.append(dk_orth)
+    return segments, labels, bands_orth, H_orth, S_orth, d_orth 
 
 def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
     """converts all matrices to orthogonal basis"""
@@ -83,21 +83,20 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
     Sk = w90.Hk(cells=cells, Hr=Sr, kFrac=kPoints)
     Rk = w90.Rk(cells=cells, Rr=Rr, kFrac=kPoints)
     S_inv_sqrt = diagonalization_inv_sqrt(Sk)
-    S_inv_sqrt_grad = gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice)
+    gradS_inv_sqrt_dagger = np.transpose(gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice).conj(), axes=(0,2,1,3))
     Hk_orth = S_inv_sqrt @ Hk @ S_inv_sqrt
     Sk_orth = S_inv_sqrt @ Sk @ S_inv_sqrt
     S_minushalf_dagger = S_inv_sqrt
-    Rk_orth = np.einsum('kab,kbc,kcdz->kadz', S_minushalf_dagger, Sk, S_inv_sqrt_grad) + np.einsum('kab,kbcz,kcd->kadz',S_minushalf_dagger, Rk, S_inv_sqrt)
+    dk_orth = -1j * np.einsum('kabz, kbc, kcd -> kadz', gradS_inv_sqrt_dagger, Sk, S_inv_sqrt) + np.einsum('kab,kbcz,kcd->kadz',S_minushalf_dagger, Rk, S_inv_sqrt)
     # test_diagonal = np.tile(np.eye(np.shape(Sk_orth)[1]), (np.shape(Sk_orth)[0], 1, 1))
-    return Sk_orth, Hk_orth, Rk_orth
+    return Sk_orth, Hk_orth, dk_orth
 
 def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
-    Sk_orth, Hk_orth, Rk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
-    Dk_orth = Rk_orth # dk is exactly the FT of pos-operator
+    Sk_orth, Hk_orth, dk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
     # grad2 = w90.grad_H(cells=cells, H=Hr, kFrac=kPoints, lattice=lattice) #can't use analytical grad directly, wrong basis
     grad = gradient_H(Hr=Hr, kPoints=kPoints, lattice=lattice)
     # assert np.allclose(grad, grad2)
-    commutator = np.einsum('kabz, kbc->kacz', Dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, Dk_orth)
+    commutator = np.einsum('kabz, kbc->kacz', dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, dk_orth)
     p = commutator + 1j* grad
     return p, Sk_orth, Hk_orth
 
@@ -254,7 +253,7 @@ if __name__ == "__main__":
     S_inv_sqrt with pade series
     write sanity checks"""
     lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_tb.dat")
-    segments, labels, bands_orth, H_orth, S_orth, R_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
+    segments, labels, bands_orth, H_orth, S_orth, d_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
     # bands_alex = parse_dftb_band(filepath="band_mos2_alex_27band.out", n_bands=27) 
     # bands_alex = [bands_alex[:100], bands_alex[100:200], bands_alex[200:300]]
     # bands_own = parse_dftb_band(filepath="band_mos2_own_27band_denssup_corrected_eigval.out", n_bands=27)
@@ -264,7 +263,7 @@ if __name__ == "__main__":
     # bandstructures = [bands_alex, bands_own, bands_orth_eV]
     # plot_bands(segments=segments, bandstructures=bandstructures)
     
-    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(20, 20,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
+    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(300, 300,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
     plt.plot(omega2, eps_tens2[:,0,0], 
             #  '.',
                ms=1)
