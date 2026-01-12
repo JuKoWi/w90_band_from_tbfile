@@ -41,7 +41,7 @@ NIX_ENFORCE_NO_NATIVE='1'
 export NIX_ENFORCE_NO_NATIVE
 NIX_HARDENING_ENABLE='bindnow format fortify fortify3 pic relro stackclashprotection stackprotector strictoverflow zerocallusedregs'
 export NIX_HARDENING_ENABLE
-NIX_LDFLAGS='-rpath /home/juliuswillrich/master-thesis/band_structure_martin/outputs/out/lib  -L/nix/store/3qi96frk3k3grg1zdi8rpnp37bj4lb83-python3-3.13.5-env/lib -L/nix/store/3qi96frk3k3grg1zdi8rpnp37bj4lb83-python3-3.13.5-env/lib'
+NIX_LDFLAGS='-rpath /home/juliuswillrich/master-thesis/w90_band_from_file/outputs/out/lib  -L/nix/store/3qi96frk3k3grg1zdi8rpnp37bj4lb83-python3-3.13.5-env/lib -L/nix/store/3qi96frk3k3grg1zdi8rpnp37bj4lb83-python3-3.13.5-env/lib'
 export NIX_LDFLAGS
 NIX_NO_SELF_RPATH='1'
 NIX_STORE='/nix/store'
@@ -127,7 +127,6 @@ declare -a envHostHostHooks=('ccWrapper_addCVars' 'bintoolsWrapper_addLDVars' )
 declare -a envHostTargetHooks=('ccWrapper_addCVars' 'bintoolsWrapper_addLDVars' )
 declare -a envTargetTargetHooks=()
 declare -a fixupOutputHooks=('if [ -z "${dontPatchELF-}" ]; then patchELF "$prefix"; fi' 'if [[ -z "${noAuditTmpdir-}" && -e "$prefix" ]]; then auditTmpdir "$prefix"; fi' 'if [ -z "${dontGzipMan-}" ]; then compressManPages "$prefix"; fi' '_moveLib64' '_moveSbin' '_moveSystemdUserUnits' 'patchShebangsAuto' '_pruneLibtoolFiles' '_doStrip' )
-guess='20'
 initialPath='/nix/store/ih779chzzag1nm91fgnrndml4mghm3la-coreutils-9.7 /nix/store/3xi6s71d3znq0ivl2r7ypg5rsz71j16h-findutils-4.10.0 /nix/store/3y665d2l6l3bp6apj012awks60wsx42i-diffutils-3.12 /nix/store/ql68miwsgz9094bi3qa7nk17bfwf6h6a-gnused-4.9 /nix/store/k7gv42hpqwh6ghiyl4ava9p5r249x6vn-gnugrep-3.12 /nix/store/rlxhn6k70xwsyydv3vrawlhghffwkyvi-gawk-5.3.2 /nix/store/bpn20jn4235mij1372xvpmibgzzpqa3m-gnutar-1.35 /nix/store/g5fgsp4afxbm352jyyvk2yfygmnj7i57-gzip-1.14 /nix/store/caj219y7i877dhda2n81nqs6plhy8pqz-bzip2-1.0.8-bin /nix/store/dlidjkvgpd8g9fqxjnrvybwlv47j1qjc-gnumake-4.4.1 /nix/store/gkwbw9nzbkbz298njbn3577zmrnglbbi-bash-5.3p0 /nix/store/6ghk0jfhngcr22mr6vpp4ly5pn8k3fsv-patch-2.8 /nix/store/7hkhqmlsdv2nq3lb41qs1jym8k6xrwcn-xz-5.8.1-bin /nix/store/x80r0d1zplpl268282a2azg32yf6g1rc-file-5.45'
 mesonFlags=''
 export mesonFlags
@@ -135,7 +134,7 @@ name='nix-shell-env'
 export name
 nativeBuildInputs=''
 export nativeBuildInputs
-out='/home/juliuswillrich/master-thesis/band_structure_martin/outputs/out'
+out='/home/juliuswillrich/master-thesis/w90_band_from_file/outputs/out'
 export out
 outputBin='out'
 outputDev='out'
@@ -166,7 +165,7 @@ preConfigurePhases=' updateAutotoolsGnuConfigScriptsPhase'
 declare -a preFixupHooks=('_moveToShare' '_multioutDocs' '_multioutDevs' )
 preferLocalBuild='1'
 export preferLocalBuild
-prefix='/home/juliuswillrich/master-thesis/band_structure_martin/outputs/out'
+prefix='/home/juliuswillrich/master-thesis/w90_band_from_file/outputs/out'
 declare -a propagatedBuildDepFiles=('propagated-build-build-deps' 'propagated-native-build-inputs' 'propagated-build-target-deps' )
 propagatedBuildInputs=''
 export propagatedBuildInputs
