@@ -179,12 +179,16 @@ def diagonalization_inv_sqrt(Sk):
     S_minushalf = np.einsum('kab, kbc, kcd -> kad', U, diags_minushalf, Udagger)
     return S_minushalf
 
-def to_bloch_basis(pk, Hk_orth):
+def to_bloch_basis(pk, Hk_orth, Sk_orth):
     vals, U = sc.linalg.eigh(Hk_orth)
     U_dagger = np.linalg.matrix_transpose(U.conj())
     pk_bloch = np.einsum('kab,kbcz,kcd->kadz', U_dagger, pk, U)
     Hk_bloch = np.einsum('kab,kbc,kcd->kad', U_dagger, Hk_orth, U)
-    return pk_bloch, Hk_bloch 
+    Sk_bloch = np.einsum('kab, kbc, kcd-> kad', U_dagger, Sk_orth, U)
+    K, a, b = Sk_bloch.shape
+    I = np.eye(a, dtype=Sk_bloch.dtype)
+    assert np.allclose(Sk_bloch, I)
+    return pk_bloch, Hk_bloch, Sk_bloch
 
 def k_grid(n_points):
     x = np.linspace(-0.5, 0.5, num=n_points[0], endpoint=False)
@@ -201,14 +205,58 @@ def k_grid(n_points):
     # plt.show()
     return kpoints
 
-def get_absorption_spectrum_optimized(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+def get_mu(T, Ef):
+    pass
+
+def fermi_dirac(T_K, E_state, mu_au):
+    mu_eV = w90.au_to_eV(mu_au)
+    E_state_eV = w90.au_to_eV(E_state)
+    kb = sc.constants.physical_constants['Boltzmann constant in eV/K'][0]
+    if T_K == 0:
+        if E_state_eV > mu_eV:
+            return 0
+        elif E_state_eV == mu_eV:
+            return 0.5
+        else:
+            return 1
+    f = 1/(np.exp((E_state_eV - mu_eV )/ (T_K * kb))+1)
+    return f
+
+def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
+    start = time.time()
+    Nk = kPoints.shape[0]
+    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
+    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
+    Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
+    bands = np.real(np.einsum('kaa->ka', Hk_bloch))
+    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
+    Nomega = omega.size
+    eps_tens = np.zeros((Nomega, 3, 3), dtype=complex)
+    gamma = w90.eV_to_au(gamma_eV)
+    omega2 = omega**2 
+    for i in range(valence_idx + 1):
+        for j in range(valence_idx + 1, Nb):
+            dE = bands[:, j] - bands[:, i]      # (Nk,)
+            p = pk_bloch[:, j, i, :]             # (Nk, 3)
+            M_ab = np.einsum('ka,kb->abk', p, p.conj(), optimize=True)
+            denom = ((dE[None, :]**2 - omega2[:, None])**2
+                     + gamma**2 * omega2[:, None])
+            lorentz = gamma * omega[:, None] / denom   # (Nomega, Nk)
+            eps_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
+    eps_tens = np.real(eps_tens) / Nk
+    end = time.time()
+    print(f"Calculation took {end - start} s")
+    return w90.au_to_eV(omega), eps_tens
+
+
+def absorption_spec_simple(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
     """
         for 200x200 k and 5000 omega: 203 s 
     """
     start = time.time()
     Nk = kPoints.shape[0]
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
-    pk_bloch, Hk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth)
+    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
     Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
     bands = np.real(np.einsum('kaa->ka', Hk_bloch))
     omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
@@ -263,7 +311,7 @@ if __name__ == "__main__":
     # bandstructures = [bands_alex, bands_own, bands_orth_eV]
     # plot_bands(segments=segments, bandstructures=bandstructures)
     
-    omega2, eps_tens2 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(300, 300,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
+    omega2, eps_tens2 = absorption_spec_simple(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(50, 50,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
     plt.plot(omega2, eps_tens2[:,0,0], 
             #  '.',
                ms=1)
