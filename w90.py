@@ -118,6 +118,8 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
         H, R = symmetrizeMatrixElements(cells, H, R)
     H_au = eV_to_au(H)
     R_au = angstrom_to_bohr(R) 
+    s = {tuple(v) for v in cells} 
+    assert all(tuple(-v) in s for v in cells) 
     return lattice_au, cells, degeneracy, H_au, S, R_au 
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
