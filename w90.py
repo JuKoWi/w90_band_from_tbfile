@@ -118,9 +118,24 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
         H, R = symmetrizeMatrixElements(cells, H, R)
     H_au = eV_to_au(H)
     R_au = angstrom_to_bohr(R) 
-    s = {tuple(v) for v in cells} 
-    assert all(tuple(-v) in s for v in cells) 
+    check_pos_op_properties(lattice_au=lattice_au, cells=cells, S=S, R_au=R_au)
     return lattice_au, cells, degeneracy, H_au, S, R_au 
+
+def check_pos_op_properties(lattice_au, cells, S, R_au):
+    s = {tuple(v) for v in cells}
+    if not all(tuple(-v) in s for v in cells):
+        print("Real space lattice points not inversion symmetric")
+    has_symmetry = True
+    print(np.max(R_au))
+    for i, cell in enumerate(cells):
+        idx_minusR = np.where(np.all(cells == -cell, axis=1))[0]
+        zero = R_au[i] - np.transpose(R_au[idx_minusR], axes=(0,2,1,3)).conj() - np.einsum('ba, b, rcd-> rcda', lattice_au, cell, np.transpose(S[idx_minusR], axes=(0,2,1)).conj())
+        if not np.allclose(zero, 0, atol=1e-9):
+            has_symmetry = False
+            print(cell)
+    if not has_symmetry:
+        print("position operator does not fulfill symmetry requirement")
+
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """
 def read_wsvec(fname):

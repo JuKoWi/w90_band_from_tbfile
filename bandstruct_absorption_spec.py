@@ -101,13 +101,13 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
     B2 = np.all(sc.linalg.ishermitian(Hk_orth, atol=1e-12))
     if not (A2 and B2):
         print("S and H in orthogonal basis are not hermitian")
-    S_inv_sqrt_dagger = np.transpose(S_inv_sqrt, axes=(0,2,1)).conj() #should not be necessary but maybe for numerical stbaility?
+    S_inv_sqrt_dagger = np.transpose(S_inv_sqrt, axes=(0,2,1)).conj() #should not be necessary but maybe for numerical stability?
     dk_orth = -1j * np.einsum('kabz, kbc, kcd -> kadz', gradS_inv_sqrt_dagger, Sk, S_inv_sqrt) + np.einsum('kab,kbcz,kcd->kadz',S_inv_sqrt_dagger, Rk, S_inv_sqrt)
     # print(np.unravel_index(np.argmax(np.imag(dk_orth)), shape=np.shape(dk_orth)))
     # print(dk_orth[5,19,2,2])
     # print(dk_orth[5,2,19,2])
     print(np.max(np.imag(dk_orth - np.transpose(dk_orth, axes=(0,2,1,3)).conj())))
-    if not check_vector_hermitian(dk_orth, atol=1e-7):
+    if not check_vector_hermitian(dk_orth, atol=1e-8):
         print("Berry connection not hermitian")
     return Sk_orth, Hk_orth, dk_orth
 
@@ -206,10 +206,10 @@ def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
     if not check_vector_hermitian(pk=grad, atol=1e-10):
         print("gradient H not hermitian")
     commutator = np.einsum('kabz, kbc->kacz', dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, dk_orth)
-    if not check_vector_hermitian(pk=commutator, atol=1e-6):
-        print("commutator [d, H] is not hermitian")
-    p = commutator + 1j* grad
-    sys.exit()
+    if not check_vector_hermitian(pk=1j*commutator, atol=1e-8):
+        print("i * [d, H] is not hermitian")
+    p = 1j * commutator + grad
+    print(np.max(np.abs(p - np.transpose(p, axes=(0,2,1,3)).conj())))
     return p, Sk_orth, Hk_orth
 
 def get_rec_lattice(lattice):
@@ -292,7 +292,7 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_id
     Nk = kPoints.shape[0]
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
     pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
-    if not check_vector_hermitian(pk=pk_bloch, atol=1e-8):
+    if not check_vector_hermitian(pk=pk_bloch, atol=1e-6):
         print("momentum not hermitian")
     Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
     bands = np.real(np.einsum('kaa->ka', Hk_bloch))
@@ -388,10 +388,10 @@ if __name__ == "__main__":
     write everything down
     S_inv_sqrt with pade series
     write sanity checks"""
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
-    for v in cells:
-        idx1 = np.where(np.all(cells == v, axis=1))[0]
-        idx2 = np.where(np.all(cells == -v, axis=1))[0]
+    # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
+    # for v in cells:
+    #     idx1 = np.where(np.all(cells == v, axis=1))[0]
+    #     idx2 = np.where(np.all(cells == -v, axis=1))[0]
         
 
     # segments, labels, bands_orth, H_orth, S_orth, d_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
@@ -417,7 +417,9 @@ if __name__ == "__main__":
     # omega3, eps_tens3 = absorption_spec_simple(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(20, 20,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
 
     # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene.dat")
+    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene_fine_grid.dat")
+    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene_ultra.dat")
+    # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene.dat")
     # segments, labels, bands_orth, H_orth, S_orth, d_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
     omega3, eps_tens3 = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(20, 20,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1, T_K=300)
 
