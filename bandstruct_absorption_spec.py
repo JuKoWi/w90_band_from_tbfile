@@ -106,7 +106,6 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
     # print(np.unravel_index(np.argmax(np.imag(dk_orth)), shape=np.shape(dk_orth)))
     # print(dk_orth[5,19,2,2])
     # print(dk_orth[5,2,19,2])
-    print(np.max(np.imag(dk_orth - np.transpose(dk_orth, axes=(0,2,1,3)).conj())))
     if not check_vector_hermitian(dk_orth, atol=1e-8):
         print("Berry connection not hermitian")
     return Sk_orth, Hk_orth, dk_orth
@@ -208,8 +207,7 @@ def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
     commutator = np.einsum('kabz, kbc->kacz', dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, dk_orth)
     if not check_vector_hermitian(pk=1j*commutator, atol=1e-8):
         print("i * [d, H] is not hermitian")
-    p = 1j * commutator + grad
-    print(np.max(np.abs(p - np.transpose(p, axes=(0,2,1,3)).conj())))
+    p = -1j * commutator + grad
     return p, Sk_orth, Hk_orth
 
 def get_rec_lattice(lattice):
@@ -283,58 +281,9 @@ def check_vector_hermitian(pk, atol):
         if not np.all(sc.linalg.ishermitian(p, atol=atol)):
             is_hermitian = False
     return is_hermitian
-    
 
-def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV, eta_eV, T_K=0):
-    "valence_idx in python style indexing"
-    start = time.time()
-    rec_lat = get_rec_lattice(lattice=lattice)
-    Nk = kPoints.shape[0]
-    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
-    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
-    if not check_vector_hermitian(pk=pk_bloch, atol=1e-6):
-        print("momentum not hermitian")
-    Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
-    bands = np.real(np.einsum('kaa->ka', Hk_bloch))
-    bandgap_ind = np.argmin(np.abs(bands[:,valence_idx+1]- bands[:, valence_idx]))
-    Ef = (bands[bandgap_ind, valence_idx] + bands[bandgap_ind, valence_idx+1]) /2
-    print(f"E_f set to {w90.au_to_eV(Ef)}")
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
-    Nomega = omega.size
-    eps_tens = np.zeros((Nomega, 3, 3), dtype=complex)
-    gamma = w90.eV_to_au(gamma_eV)
-    eta = w90.eV_to_au(eta_eV)
-    omega2 = omega**2 
-    for i in range(valence_idx + 1):
-        f = 2 * fermi_dirac(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
-        for j in range(valence_idx + 1, Nb):
-            dE = bands[:, j] - bands[:, i]      # (Nk,)
-            p = pk_bloch[:, j, i, :]             # (Nk, 3)
-            M_ab = np.einsum('ka,kb->abk', p, p.conj())
-            print(np.max(np.imag(M_ab)))
-            assert np.allclose(np.imag(M_ab), 0)
-            denom = ((dE[None, :]**2 - omega2[:, None])**2
-                     + gamma**2 * omega2[:, None])
-            lorentz = f * gamma * omega[:, None] / denom   # (Nomega, Nk)
-            eps_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
-    for i in range(Nb):
-        dfdE = 2 * fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
-        k = rec_lat @ kPoints[i]
-        if np.allclose(kPoints[i], [0.1,0.1,0.1]):
-            print(k)
-        p = pk_bloch[:,i,i,:] - k # leave out factor Sk_ii because it is 1 anyway
-        M_ab = np.einsum('ka, kb->abk', p, p.conj())
-        assert np.allclose(np.imag(M_ab), 0)
-        lorentz = eta * omega[:,None] / (omega2[:,None]**2 + eta**2 * omega2[:,None])
-        eps_tens += 0.5 * np.einsum('abk, ok -> oab', M_ab, lorentz*dfdE) 
-    print(np.max(np.imag(eps_tens)))
-    assert np.allclose(np.imag(eps_tens), 0)
-    eps_tens = np.real(eps_tens)
-    eps_tens /= np.max(eps_tens)
-    end = time.time()
-    print(f"Calculation took {end - start} s")
-    return w90.au_to_eV(omega), eps_tens
-
+def make_momentum_hermitian(pk):
+    return 0.5 * (pk + np.transpose(pk, axes=(0,2,1,3)).conj())
 
 def absorption_spec_simple(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
     """
@@ -344,6 +293,9 @@ def absorption_spec_simple(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, val
     Nk = kPoints.shape[0]
     pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
     pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
+    hermitian_tolerance = np.max(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj())
+    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
+    pk = make_momentum_hermitian(pk_bloch)
     Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
     bands = np.real(np.einsum('kaa->ka', Hk_bloch))
     omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
@@ -365,6 +317,63 @@ def absorption_spec_simple(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, val
     end = time.time()
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), eps_tens
+    
+
+def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV, eta_eV, T_K=0):
+    "valence_idx in python style indexing"
+    start = time.time()
+    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
+    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
+    hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
+    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
+    pk = make_momentum_hermitian(pk_bloch)
+
+    Nk = kPoints.shape[0]
+    Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
+    rec_lat = get_rec_lattice(lattice=lattice)
+    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
+    omega = omega[omega > 1e-2]
+    Nomega = omega.size
+    gamma = w90.eV_to_au(gamma_eV)
+    eta = w90.eV_to_au(eta_eV)
+    omega2 = omega**2 
+
+    bands = np.real(np.einsum('kaa->ka', Hk_bloch))
+    bandgap_ind = np.argmin(np.abs(bands[:,valence_idx+1]- bands[:, valence_idx]))
+    Ef = (bands[bandgap_ind, valence_idx] + bands[bandgap_ind, valence_idx+1]) /2
+    print(f"E_f set to {w90.au_to_eV(Ef)}")
+
+    eps_tens = np.zeros((Nomega, 3, 3), dtype=complex)
+    for i in range(valence_idx+1):
+        f = 2 * fermi_dirac(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
+        for j in range(valence_idx+1, Nb):
+            dE = bands[:, j] - bands[:, i]      # (Nk,)
+            dE_inv = 1/dE
+            dE_inv[dE_inv > 1e4] = 0
+            p = pk_bloch[:, i, j, :]             # (Nk, 3)
+            M_ab = np.einsum('ka,kb->abk', p, p.conj())
+            denom = ((dE[None, :]**2 - omega2[:, None])**2 + gamma**2 * omega2[:, None])
+            lorentz = f * gamma * omega[:, None] / denom   # (Nomega, Nk)
+            eps_tens += np.einsum('abk,ok->oab', M_ab*dE_inv, lorentz)
+    for i in range(Nb):
+        dfdE = 2 * fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
+        k = np.einsum('ab,kb-> ka', rec_lat, kPoints)
+        p = pk_bloch[:,i,i,:] - k[:,:] # leave out factor Sk_ii because it is 1 anyway
+        print(np.shape(p))
+        M_ab = np.einsum('ka, kb->abk', p, p.conj())
+        lorentz = eta / (omega[:,None] * ( omega2[:,None] + eta**2))
+        eps_tens += 0.5 * np.einsum('abk, ok -> oab', M_ab, lorentz*dfdE) 
+    print(f"maximal im of eps2 = {np.max(np.imag(eps_tens))}")
+    eps_tens = np.real(eps_tens)
+    eps_tens /= np.max(np.abs(eps_tens))
+    diagonal_mask = np.eye(eps_tens.shape[1])
+    max_offdiag = np.max(np.abs(eps_tens - diagonal_mask * eps_tens))
+    print(f"maximal offdiagonal value of eps: {max_offdiag}")
+    end = time.time()
+    print(f"Calculation took {end - start} s")
+    return w90.au_to_eV(omega), eps_tens
+
+
 
 
 def plot_bands(segments, bandstructures:list):
@@ -417,11 +426,12 @@ if __name__ == "__main__":
     # omega3, eps_tens3 = absorption_spec_simple(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(20, 20,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
 
     # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene_fine_grid.dat")
+    # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene_fine_grid.dat")
     lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene_ultra.dat")
     # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene.dat")
     # segments, labels, bands_orth, H_orth, S_orth, d_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
-    omega3, eps_tens3 = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(20, 20,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1, T_K=300)
+    omega3, eps_tens3 = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(30, 30,1)), lattice=lattice, cells=cells, range_omega=(1, 10), valence_idx=3, gamma_eV=0.1, eta_eV=0.1, T_K=300)
+    # omega3, eps_tens3 = absorption_spec_simple(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(40, 40,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
 
      
     # plt.plot(omega1, eps_tens1[:,0,0], 
@@ -431,6 +441,12 @@ if __name__ == "__main__":
     #          '.',
     #            ms=1)
     plt.plot(omega3, eps_tens3[:,0,0], 
+             '.',
+               ms=1)
+    plt.plot(omega3, eps_tens3[:,1,1], 
+             '.',
+               ms=1)
+    plt.plot(omega3, eps_tens3[:,2,2], 
              '.',
                ms=1)
     plt.show()
