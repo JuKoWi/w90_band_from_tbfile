@@ -92,7 +92,7 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
         assert np.allclose(S_inv_sqrt[i] @ Sk[i] @ S_inv_sqrt[i], np.eye(np.shape(Sk)[1]))
     if not np.all(sc.linalg.ishermitian(S_inv_sqrt, atol=1e-12)):
         print("Orthogonalization matrix not hermitian")
-    gradS_inv_sqrt_dagger = np.transpose(gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice).conj(), axes=(0,2,1,3))
+    gradS_inv_sqrt_dagger = np.transpose(gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice, cells=cells).conj(), axes=(0,2,1,3))
     if not check_vector_hermitian(pk=gradS_inv_sqrt_dagger, atol=1e-12): #only hermitian with atol = 1e-9
         print("grad S-1/2 not hermitian")
     Hk_orth = S_inv_sqrt @ Hk @ S_inv_sqrt
@@ -110,7 +110,7 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
         print("Berry connection not hermitian")
     return Sk_orth, Hk_orth, dk_orth
 
-def partial_Hk(Hr, kPoints, component):
+def partial_Hk(Hr, kPoints, cells, component):
     stencil_shift_factor = 1e-3 # smaller stencil shift does not make sense
     basis_vec = np.zeros((3,))
     basis_vec[component] = 1
@@ -128,7 +128,7 @@ def partial_Hk(Hr, kPoints, component):
         print("partial Hk not hermitian")
     return derivative
 
-def partial_Sminushalf(Sr, kPoints, component):
+def partial_Sminushalf(Sr, kPoints, cells, component):
     stencil_shift_factor = 1e-3 #smaller stencil shift does not make sense
     basis_vec = np.zeros((3,))
     basis_vec[component] = 1
@@ -179,29 +179,33 @@ def newton_schulz(Sk, iters=20):
         X = 0.5 * X @ (3*I - Sk @ X2)
     return X
 
-def gradient_H(Hr, kPoints, lattice):
+def gradient_H(Hr, kPoints, cells, lattice):
     """Returns array of shape (kpoints, basis, basis, components)"""
-    Ha = partial_Hk(Hr=Hr, kPoints=kPoints, component=0)
-    Hb = partial_Hk(Hr=Hr, kPoints=kPoints, component=1)
-    Hc = partial_Hk(Hr=Hr, kPoints=kPoints, component=2)
+    Ha = partial_Hk(Hr=Hr, kPoints=kPoints, cells=cells, component=0)
+    Hb = partial_Hk(Hr=Hr, kPoints=kPoints, cells=cells, component=1)
+    Hc = partial_Hk(Hr=Hr, kPoints=kPoints, cells=cells, component=2)
     rec_lat_inv= lattice/ (2 * np.pi) # equivalent to inverse of reciprocal lattice matrix. lattice has lattice vectors as rows
     grad_S_inv_sqrt = np.stack((Ha, Hb, Hc), axis=-1)
     grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, rec_lat_inv)
     return grad_S_inv_sqrt
 
-def gradient_S_inv_sqrt(Sr, kPoints, lattice):
+def gradient_S_inv_sqrt(Sr, kPoints, lattice, cells):
     """Returns array of shape (kpoints, basis, basis, components)"""
     rec_lat_inv= lattice/ (2 * np.pi) # equivalent to inverse of reciprocal lattice matrix. lattice has lattice vectors as rows
-    Sa = partial_Sminushalf(Sr=Sr, kPoints=kPoints, component=0)
-    Sb = partial_Sminushalf(Sr=Sr, kPoints=kPoints, component=1)
-    Sc = partial_Sminushalf(Sr=Sr, kPoints=kPoints, component=2)
+    Sa = partial_Sminushalf(Sr=Sr, kPoints=kPoints, cells=cells, component=0)
+    Sb = partial_Sminushalf(Sr=Sr, kPoints=kPoints, cells=cells, component=1)
+    Sc = partial_Sminushalf(Sr=Sr, kPoints=kPoints, cells=cells, component=2)
     grad_S_inv_sqrt = np.stack((Sa, Sb, Sc), axis=-1)
     grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, rec_lat_inv)
     return grad_S_inv_sqrt
 
+def get_dipole(Hr, Sr, Rr, kPoints, cells, lattice):
+    Sk_orth, Hk_orth, dk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
+    return dk_orth, Sk_orth, Hk_orth
+
 def get_momentum(Hr, Sr, Rr, kPoints, cells, lattice):
     Sk_orth, Hk_orth, dk_orth = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
-    grad = gradient_H(Hr=Hr, kPoints=kPoints, lattice=lattice)
+    grad = gradient_H(Hr=Hr, kPoints=kPoints, cells=cells, lattice=lattice)
     if not check_vector_hermitian(pk=grad, atol=1e-10):
         print("gradient H not hermitian")
     commutator = np.einsum('kabz, kbc->kacz', dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, dk_orth)
@@ -234,6 +238,7 @@ def to_bloch_basis(pk, Hk_orth, Sk_orth):
     return pk_bloch, Hk_bloch, Sk_bloch
 
 def k_grid(n_points):
+    """returns list of k-points, x-component changes fastest from low to high"""
     x = np.linspace(-0.5, 0.5, num=n_points[0], endpoint=False)
     y = np.linspace(-0.5, 0.5, num=n_points[1], endpoint=False)
     z = np.linspace(-0.5, 0.5, num=n_points[2], endpoint=False)
@@ -318,36 +323,6 @@ def absorption_spec_simple(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, val
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), eps_tens
 
-def get_absorption_spectrum_optimized(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV):
-    """
-        for 200x200 k and 5000 omega: 203 s 
-    """
-    start = time.time()
-    Nk = kPoints.shape[0]
-    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
-    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
-    Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
-    bands = np.real(np.einsum('kaa->ka', Hk_bloch))
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
-    Nomega = omega.size
-    eps_tens = np.zeros((Nomega, 3, 3), dtype=complex)
-    gamma = w90.eV_to_au(gamma_eV)
-    omega2 = omega**2 
-    for i in range(valence_idx + 1):
-        for j in range(valence_idx + 1, Nb):
-            dE = bands[:, j] - bands[:, i]      # (Nk,)
-            p = pk_bloch[:, j, i, :]             # (Nk, 3)
-            M_ab = np.einsum('ka,kb->abk', p, p.conj(), optimize=True)
-            denom = ((dE[None, :]**2 - omega2[:, None])**2
-                     + gamma**2 * omega2[:, None])
-            lorentz = gamma * omega[:, None] / denom   # (Nomega, Nk)
-            eps_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
-    eps_tens = np.real(eps_tens) / Nk
-    end = time.time()
-    print(f"Calculation took {end - start} s")
-    return w90.au_to_eV(omega), eps_tens
-    
-
 def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_idx, gamma_eV, eta_eV, T_K=0):
     "valence_idx in python style indexing"
     start = time.time()
@@ -389,7 +364,6 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_id
         dfdE = 2 * fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
         k = np.einsum('ab,kb-> ka', rec_lat, kPoints)
         p = pk_bloch[:,i,i,:] - k[:,:] # leave out factor Sk_ii because it is 1 anyway
-        print(np.shape(p))
         M_ab = np.einsum('ka, kb->abk', p, p.conj())
         lorentz = eta / ( omega2[:,None] + eta**2)
         sigma_tens += 0.5 * np.einsum('abk, ok -> oab', M_ab, lorentz*dfdE) 
@@ -402,9 +376,6 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_id
     end = time.time()
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), sigma_tens
-
-
-
 
 def plot_bands(segments, bandstructures:list):
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
@@ -421,6 +392,8 @@ def plot_bands(segments, bandstructures:list):
         point_symbols.append(i[0])
     plotLines(ax=ax, pos=pos, labels=point_symbols)
     plt.show()
+    
+
 
 if __name__ == "__main__":
     # segments, labels, bands_orth, H_orth, S_orth, d_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
@@ -430,21 +403,13 @@ if __name__ == "__main__":
     # bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
 
     lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
-    # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_graphene_ultra.dat")
-    # segments, labels, bands_orth, H_orth, S_orth, d_orth =  bandstructure_orth_basis(lattice, cells, Hr, Sr, Rr)
-    # omega3, eps_tens3 = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(40, 40,1)), lattice=lattice, cells=cells, range_omega=(1, 10), valence_idx=3, gamma_eV=0.1, eta_eV=0.1, T_K=300)
-    omega3, eps_tens3 = get_absorption_spectrum_optimized(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(100, 100,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
-    # omega3, eps_tens3 = absorption_spec_simple(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(40, 40,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1)
-
+    omega, sigma_tens = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(100, 100,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1)
      
-    plt.plot(omega3, eps_tens3[:,0,0], 
+    plt.plot(omega, sigma_tens[:,0,0], 
              '.',
                ms=1)
-    plt.plot(omega3, eps_tens3[:,1,1], 
+    plt.plot(omega, sigma_tens[:,1,1], 
              '.',
                ms=1)
-    # plt.plot(omega3, eps_tens3[:,2,2], 
-    #          '.',
-    #            ms=1)
     plt.show()
 
