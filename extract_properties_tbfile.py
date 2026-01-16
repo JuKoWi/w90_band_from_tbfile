@@ -93,7 +93,7 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
     if not np.all(sc.linalg.ishermitian(S_inv_sqrt, atol=1e-12)):
         print("Orthogonalization matrix not hermitian")
     gradS_inv_sqrt_dagger = np.transpose(gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice, cells=cells).conj(), axes=(0,2,1,3))
-    if not check_vector_hermitian(pk=gradS_inv_sqrt_dagger, atol=1e-12): #only hermitian with atol = 1e-9
+    if not check_vector_hermitian(pk=gradS_inv_sqrt_dagger, atol=1e-11): #only hermitian with atol = 1e-9
         print("grad S-1/2 not hermitian")
     Hk_orth = S_inv_sqrt @ Hk @ S_inv_sqrt
     Sk_orth = S_inv_sqrt @ Sk @ S_inv_sqrt
@@ -225,7 +225,6 @@ def get_rec_lattice(lattice):
     b3 = 2 * np.pi * np.cross(a1, a2) / volume
     return np.array([b1, b2, b3]).T
 
-
 def to_bloch_basis(pk, Hk_orth, Sk_orth):
     vals, U = sc.linalg.eigh(Hk_orth)
     U_dagger = np.linalg.matrix_transpose(U.conj())
@@ -238,14 +237,15 @@ def to_bloch_basis(pk, Hk_orth, Sk_orth):
     return pk_bloch, Hk_bloch, Sk_bloch
 
 def k_grid(n_points):
-    """returns list of k-points, x-component changes fastest from low to high"""
-    x = np.linspace(-0.5, 0.5, num=n_points[0], endpoint=False)
-    y = np.linspace(-0.5, 0.5, num=n_points[1], endpoint=False)
-    z = np.linspace(-0.5, 0.5, num=n_points[2], endpoint=False)
+    """returns list of k-points, x-component changes fastest from low to high
+    due to periodicity, BZ can be shifted so it starts at gamma point"""
+    x = np.arange(n_points[0])/n_points[0]
+    y = np.arange(n_points[1])/n_points[1]
+    z = np.arange(n_points[2])/n_points[2]
     xv, yv, zv = np.meshgrid(x,y,z) 
-    xv = xv.flatten()
-    yv = yv.flatten()
-    zv = zv.flatten()
+    xv = xv.flatten(order='C')
+    yv = yv.flatten(order='C')
+    zv = zv.flatten(order='C')
     kpoints = np.column_stack((xv,yv,zv))
     # fig = plt.figure()
     # ax = fig.add_subplot(projection='3d')
@@ -253,8 +253,7 @@ def k_grid(n_points):
     # plt.show()
     return kpoints
 
-def get_mu(T, Ef):
-    pass
+#TODO: function to calculate chemical potential
 
 def fermi_dirac(T_K, E_state_au, mu_au):
     mu_eV = w90.au_to_eV(mu_au)
@@ -403,7 +402,7 @@ if __name__ == "__main__":
     # bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
 
     lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
-    omega, sigma_tens = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(100, 100,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1)
+    omega, sigma_tens = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(10, 10,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1)
      
     plt.plot(omega, sigma_tens[:,0,0], 
              '.',
