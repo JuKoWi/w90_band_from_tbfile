@@ -121,6 +121,76 @@ def read_tb(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
     check_pos_op_properties(lattice_au=lattice_au, cells=cells, S=S, R_au=R_au)
     return lattice_au, cells, degeneracy, H_au, S, R_au 
 
+def read_tb_orthogonal(fname, symmetrize=False, onlyReal=False, onlyLattice=False):
+    """Units in file:
+            lattice-vectors: Angstrom
+            H: eV
+            R: Angstrom
+        Return:
+            all atomic units
+
+    """
+    origFname = None
+    for fn in [fname, fname + "_tb.dat", fname + ".dat"]:
+        if os.path.exists(fn):
+            origFname = fn
+            break
+    if origFname is None:
+        print(f"read_tb: No matching file name found for '{fname}'")
+        return
+    with open(origFname, "r") as f:
+        f.readline() # header
+        lattice_ang = np.empty((3,3))
+        for i in range(3):
+            gv = f.readline() # grid vectors
+            lattice_ang[i] = np.array([float(g) for g in gv.split()])
+        lattice_au = angstrom_to_bohr(lattice_ang)
+        if onlyLattice:
+            return lattice_au
+        numWann = int(f.readline())
+        nR = int(f.readline())
+        degeneracy = []
+        while len(degeneracy) < nR:
+            degeneracy += [float(s) for s in f.readline().split()]
+        degeneracy = np.array(degeneracy)
+        cells = np.empty((nR, 3), dtype=int)
+        H = np.empty((nR, numWann, numWann), dtype=complex)
+        S = np.empty((nR, numWann, numWann), dtype=complex)
+        R = np.empty((nR, numWann, numWann, 3), dtype=complex)
+
+        for ri in range(nR):
+            f.readline()
+            cells[ri, :] = np.array([int(s) for s in f.readline().split()])
+            for a in range(numWann):
+                for b in range(numWann):
+                    sp = f.readline().split()
+                    aS, bS = [int(s)-1 for s in sp[:2]]
+                    Hreal, Himag = [float(s) for s in sp[2:4:]]
+                    if onlyReal:
+                        Himag = 0
+                    H[ri, aS, bS] = Hreal + 1j * Himag
+            S[ri,:,:] = np.eye(numWann)
+                    
+        # dipole transition
+        for ri in range(nR):
+            f.readline()
+            rIndex = np.array([int(s) for s in f.readline().split()])
+            assert np.all(rIndex == cells[ri] )
+            for a in range(numWann):
+                for b in range(numWann):
+                    sp = f.readline().split()
+                    aS, bS = [int(s)-1 for s in sp[:2]]
+                    rReal = np.array([float(s) for s in sp[2::2]])
+                    rImag = np.array([float(s) for s in sp[3::2]])
+                    if onlyReal:
+                        rImag = 0
+                    R[ri, aS, bS] = rReal + 1j * rImag
+    if symmetrize:
+        H, R = symmetrizeMatrixElements(cells, H, R)
+    H_au = eV_to_au(H)
+    R_au = angstrom_to_bohr(R) 
+    return lattice_au, cells, degeneracy, H_au, S, R_au 
+
 def check_pos_op_properties(lattice_au, cells, S, R_au):
     """make sure that for every lattice point there is also the inverse in the list. 
     Also ensure that the pos. operator elements fulfill

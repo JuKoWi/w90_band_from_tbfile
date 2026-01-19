@@ -2,6 +2,7 @@ from w90 import read_tb, eV_to_au, angstrom_to_bohr, au_to_eV, bohr_to_angstrom
 from extract_properties_tbfile import *
 from collections import Counter
 import numpy as np
+import time
 
 def test_realspace_momentum(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
@@ -97,7 +98,7 @@ def get_equivalence_keys(Rpoints, Rextent):
     counts_per_elem = np.array([counts[x] for x in point_tuples])
     return keys, counts_per_elem
 
-def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, filename="seedname_orth.dat"):
+def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filename="seedname_orth.dat"):
     """write wannier90 file with hamiltonian Hr and position-operator posr for a
     set of lattice vectors Rpoints"""
     lattice_angstrom = bohr_to_angstrom(lattice_au)
@@ -108,7 +109,7 @@ def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, filename="seedn
     Nlattice = np.shape(Rpoints)[0]
     with open(filename, 'w') as f:
         f.write(str(np.datetime64('now'))+'\n')
-        np.savetxt(f, w90.bohr_to_angstrom(lattice_angstrom))
+        np.savetxt(f, lattice_angstrom)
         f.write(str(Norbs)+'\n')
         f.write(str(Nlattice)+'\n')
         for i in range(Nlattice):
@@ -116,20 +117,53 @@ def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, filename="seedn
             if (i+1) % 15 == 0:
                 f.write('\n')
         f.write('\n')
+        for n, Rvec in enumerate(Rpoints):
+            f.write('\n')
+            f.write(str(Rvec[0]) + ' ' + str(Rvec[1]) + ' ' + str(Rvec[2]) + '\n')
+            A = np.real(Hr[n])
+            B = np.imag(Hr[n])
+            if Sr is not None:
+                C = np.real(Sr[n])
+                D = np.imag(Sr[n])
+            for i in range(Norbs):
+                for j in range(Norbs):
+                    if Sr is None:
+                        print(f"{i+1} {j+1}\t{A[i,j]:.18e}\t{B[i,j]:.18e}", file=f)
+                    else:
+                        print(f"{i+1} {j+1}\t{A[i,j]:.18e}\t{B[i,j]:.18e}\t{C[i,j]:.18e}\t{D[i,j]:.18e}", file=f)
+        for n,Rvec in enumerate(Rpoints):
+            f.write('\n')
+            f.write(str(Rvec[0]) + ' ' + str(Rvec[1]) + ' ' + str(Rvec[2]) + '\n')
+            xre = np.real(posr[n,:,:,0])
+            xim = np.imag(posr[n,:,:,0])
+            yre = np.real(posr[n,:,:,1])
+            yim = np.imag(posr[n,:,:,1])
+            zre = np.real(posr[n,:,:,2])
+            zim = np.imag(posr[n,:,:,2])
+            for i in range(Norbs):
+                for j in range(Norbs):
+                    print(f"{i+1} {j+1}\t{xre[i,j]:.18e}\t{xim[i,j]:.18e}\t{yre[i,j]:.18e}\t{yim[i,j]:.18e}\t{zre[i,j]:.18e}\t{zim[i,j]:.18e}", file=f)
+
+
     
 def orthogonal_wannierfile(filename_in, shape_tuple):
+    start = time.time()
     kPoints = k_grid(n_points=shape_tuple)
     lattice_au, cells, degeneracy, Hr, Sr, Rr = w90.read_tb(filename_in)
     dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au) # (k,a,a), (k,a,a), (k,a,a,c)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
+    Sr = transform_hamiltonian(Hk=Sk_orth, shape_tuple=shape_tuple)
     posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
     Rpoints_WScell = fold_to_wignerseitz(Rextent=shape_tuple, lattice=lattice_au)
     keys, counts_per_point = get_equivalence_keys(Rpoints=Rpoints_WScell, Rextent=shape_tuple)
-    write_wannierfile(Hr=Hr, posr=posr, Rpoints=Rpoints_WScell, degeneracy=counts_per_point, lattice_au=lattice_au)
+    print('start writing')
+    # write_wannierfile(Hr=Hr, posr=posr, Rpoints=Rpoints_WScell, degeneracy=counts_per_point, lattice_au=lattice_au, Sr=Sr)
+    stop = time.time()
+    print(f"Function took {stop-start} s to execute")
 
 if __name__=="__main__":
     fileA = "seedname_mos2_full.dat"
-    orthogonal_wannierfile(filename_in=fileA, shape_tuple=(10,10,1))
+    orthogonal_wannierfile(filename_in=fileA, shape_tuple=(11,11,1))
     # frobenius_px = test_realspace_dipole(tb_file=fileA, shape_tuple=(500,1,1))
     # frobenius_py = test_realspace_dipole(tb_file=fileA, shape_tuple=(1,500,1))
     # R = np.arange(stop=500)

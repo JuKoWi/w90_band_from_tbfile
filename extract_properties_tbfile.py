@@ -85,7 +85,7 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
     A1 = np.all(sc.linalg.ishermitian(Sk, atol=1e-12))
     B1 = np.all(sc.linalg.ishermitian(Hk, atol=1e-12))
     if not (A1 and B1):
-        print("H and as not hermitian")
+        print("H and S not hermitian")
     S_inv_sqrt = diagonalization_inv_sqrt(Sk)
     # S_inv_sqrt = newton_schulz(Sk=Sk)
     for i, k in enumerate(kPoints):
@@ -401,7 +401,9 @@ if __name__ == "__main__":
     # bands_own = parse_dftb_band(filepath="band_mos2_own_27band_denssup_corrected_eigval.out", n_bands=27)
     # bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
 
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
+    # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
+    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_orth.dat")
+
     omega, sigma_tens = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(10, 10,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1)
      
     plt.plot(omega, sigma_tens[:,0,0], 
