@@ -6,38 +6,35 @@ import time
 
 def test_realspace_momentum(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb(tb_file)
-    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
+    lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(tb_file)
+    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth) # (k, a, a, c)
     Nk, Nband, _, Ncoord = np.shape(pk_bloch)
     pk_bloch = np.reshape(pk_bloch, shape=(*shape_tuple, Nband, Nband, Ncoord)) #(kx, ky, kz, a, a, c)
     fft_momentum = np.fft.fftn(a=pk_bloch, axes=(0,1,2)) #(Rx, Ry, Rz, a, a, c)
     fft_momentum = np.transpose(fft_momentum, axes=(5, 0, 1, 2, 3, 4)) # (c, Rx, Ry, Rz, a, a)
-    print(np.shape(fft_momentum))
     frobenius_p = np.linalg.matrix_norm(fft_momentum, ord='fro') # (c, Rx, Ry, Rz)
-    print(np.shape(frobenius_p))
     return frobenius_p
 
 def test_realspace_dipole(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb(tb_file)
-    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice)
+    lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(tb_file)
+    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     dk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=dk_orth, Hk_orth=Hk_orth, Sk_orth=Sk_orth) # (k, a, a, c)
     Nk, Nband, _, Ncoord = np.shape(dk_bloch)
     dk_bloch = np.reshape(dk_bloch, shape=(*shape_tuple, Nband, Nband, Ncoord)) #(kx, ky, kz, a, a, c)
     fft_dipole = np.fft.fftn(a=dk_bloch, axes=(0,1,2)) #(Rx, Ry, Rz, a, a, c)
     fft_dipole = np.transpose(fft_dipole, axes=(5, 0, 1, 2, 3, 4)) # (c, Rx, Ry, Rz, a, a)
-    print(np.shape(fft_dipole))
     frobenius_dipole = np.linalg.matrix_norm(fft_dipole, ord='fro') # (c, Rx, Ry, Rz)
-    print(np.shape(frobenius_dipole))
     return frobenius_dipole
 
 def transform_hamiltonian(Hk, shape_tuple):
     """includes factor 1/N in backtransform because not included in R->k transform"""
     Nk, Nband, _ = np.shape(Hk)
-    assert np.prod(shape_tuple) == Nk
+    if not (np.prod(shape_tuple) == Nk):
+        print("Mismatch in shape tuple and actual shape of array")
     Hk_reshaped = np.reshape(Hk, shape=(*shape_tuple, Nband, Nband), order='C') #(kx, ky, kz, a, a)
-    fft_hamiltonian = np.fft.fftn(a=Hk, axes=(0,1,2))/Nk  # (Rx, Ry, Rz, a, a)
+    fft_hamiltonian = np.fft.fftn(a=Hk_reshaped, axes=(0,1,2))/Nk  # (Rx, Ry, Rz, a, a)
     fft_hamiltonian = np.reshape(fft_hamiltonian, shape=(Nk, Nband, Nband), order='C')
     return fft_hamiltonian
 
@@ -99,7 +96,6 @@ def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
     Rpoints_folded = np.array(Rpoints_folded)
     ndeg = np.array(ndeg)
     fft_matrices_folded = []
-    print(repeats)
     for i, mat in enumerate(fft_matrices):
         fft_matrices_folded.append(np.repeat(mat, axis=0, repeats=repeats)) 
         assert np.shape(fft_matrices_folded[i])[0] == np.shape(Rpoints_folded)[0]
@@ -158,10 +154,9 @@ def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filena
 def orthogonal_wannierfile(filename_in, shape_tuple):
     start = time.time()
     kPoints = k_grid(n_points=shape_tuple)
-    lattice_au, cells, degeneracy, Hr, Sr, Rr = w90.read_tb(filename_in)
-    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au) # (k,a,a), (k,a,a), (k,a,a,c)
+    lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
+    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
-    Sr = transform_hamiltonian(Hk=Sk_orth, shape_tuple=shape_tuple)
     posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
     fftmatrices = [Hr, posr]
     Rpoints_folded, ndeg, fftmatrices_folded = fold_to_wignerseitz(Rextent=shape_tuple, lattice=lattice_au, fft_matrices=fftmatrices)
@@ -173,11 +168,32 @@ def orthogonal_wannierfile(filename_in, shape_tuple):
     stop = time.time()
     print(f"Function took {stop-start} s to execute")
 
+def nonorthogonal_wannierfile(filename_in, shape_tuple):
+    start = time.time()
+    kPoints = k_grid(n_points=shape_tuple)
+    lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
+    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
+    Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
+    Sr = transform_hamiltonian(Hk=Sk_orth, shape_tuple=shape_tuple)
+    posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
+    fftmatrices = [Hr, posr, Sr]
+    Rpoints_folded, ndeg, fftmatrices_folded = fold_to_wignerseitz(Rextent=shape_tuple, lattice=lattice_au, fft_matrices=fftmatrices)
+    Hr_folded = fftmatrices_folded[0]
+    posr_folded = fftmatrices_folded[1]
+    Sr_folded = fftmatrices_folded[2]
+    print(Rpoints_folded[0])
+    print(Sr_folded[0])
+    print(f'maximal number of unit cells in any direction: {np.max(Rpoints_folded)}')
+    print('start writing')
+    write_wannierfile(Hr=Hr_folded, posr=posr_folded, Rpoints=Rpoints_folded, degeneracy=ndeg, lattice_au=lattice_au, Sr=Sr_folded, filename="seedname_nonorth.dat")
+    stop = time.time()
+    print(f"Function took {stop-start} s to execute")
+
 if __name__=="__main__":
     fileA = "seedname_input/seedname_mos2.dat"
     # frobenius_dipole = test_realspace_dipole(tb_file=fileA, shape_tuple=(50,1,1))
     # x = np.arange(50)
     # plt.plot(x, frobenius_dipole[1,:,0,0])
     # plt.show()
-    orthogonal_wannierfile(filename_in=fileA, shape_tuple=(50,50,1))
+    nonorthogonal_wannierfile(filename_in=fileA, shape_tuple=(20,20,1))
 

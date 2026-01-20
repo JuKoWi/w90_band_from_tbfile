@@ -306,15 +306,15 @@ def read_u(fname):
 
 
 """ interpolates Hamiltonian to fractional k-point using the old interpolation scheme """
-def Hk_old(cells, degeneracy, H, kFrac):
-    kr = 2 * np.pi * np.einsum("ab, b", cells, kFrac)
-    Hk = np.einsum("a,abc",  np.exp(1j * kr), H / degeneracy[:, np.newaxis, np.newaxis])
+def Hk_degenerate(cells, degeneracies, Hr, kFrac):
+    kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
+    Hk = np.einsum("...a,abc -> ...bc",  np.exp(1j * kr), Hr / degeneracies[:, np.newaxis, np.newaxis])
     return Hk
 
 """ interpolates dipole operator to fractional k-point using the old interpolation scheme """
-def Rk_old(cells, degeneracy, D, kFrac):
-    kr = 2 * np.pi * np.einsum("ab, b", cells, kFrac)
-    Dk = np.einsum("a,abcd->bcd",  np.exp(1j * kr), D / degeneracy[:, np.newaxis, np.newaxis, np.newaxis])
+def Rk_degenerate(cells, degeneracies, Rr, kFrac):
+    kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
+    Dk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), Rr / degeneracies[:, np.newaxis, np.newaxis, np.newaxis])
     return Dk
 
 """ interpolates Hamiltonian to fractional k-point using the new interpolation scheme
@@ -332,6 +332,7 @@ def Rk(cells, Rr, kFrac):
     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
     Rk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), Rr)
     return Rk
+
 
 # def grad_H(cells, H, kFrac, lattice):
 #     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
