@@ -103,11 +103,9 @@ def orthogonalize(lattice, cells, Hr, Sr, Rr, kPoints):
         print("S and H in orthogonal basis are not hermitian")
     S_inv_sqrt_dagger = np.transpose(S_inv_sqrt, axes=(0,2,1)).conj() #should not be necessary but maybe for numerical stability?
     dk_orth = -1j * np.einsum('kabz, kbc, kcd -> kadz', gradS_inv_sqrt_dagger, Sk, S_inv_sqrt) + np.einsum('kab,kbcz,kcd->kadz',S_inv_sqrt_dagger, Rk, S_inv_sqrt)
-    # print(np.unravel_index(np.argmax(np.imag(dk_orth)), shape=np.shape(dk_orth)))
-    # print(dk_orth[5,19,2,2])
-    # print(dk_orth[5,2,19,2])
+    hermitian_tol = np.max(np.abs(dk_orth - np.transpose(dk_orth, axes=(0,2,1,3)).conj()))
     if not check_vector_hermitian(dk_orth, atol=1e-8):
-        print("Berry connection not hermitian")
+        print(f"Berry connection not hermitian by {hermitian_tol}")
     return Sk_orth, Hk_orth, dk_orth
 
 def partial_Hk(Hr, kPoints, cells, component):
@@ -376,10 +374,10 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, range_omega, valence_id
     print(f"Calculation took {end - start} s")
     return w90.au_to_eV(omega), sigma_tens
 
-def plot_bands(segments, bandstructures:list):
+def plot_bands(segments, labels, bandstructures:list, pltname):
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     scale = 800
-    colors = mcolors.BASE_COLORS
+    colors = mcolors.TABLEAU_COLORS
     names = list(colors)
     for j, bands in enumerate(bandstructures):
         for i, (kPoints, relPos) in enumerate(segments):
@@ -390,7 +388,10 @@ def plot_bands(segments, bandstructures:list):
     for i in labels:
         point_symbols.append(i[0])
     plotLines(ax=ax, pos=pos, labels=point_symbols)
+    plt.savefig(f'{pltname}.pdf')
     plt.show()
+
+
     
 
 
@@ -402,9 +403,9 @@ if __name__ == "__main__":
     # bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
 
     # lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_mos2_full.dat")
-    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_orth.dat")
+    lattice, cells, degeneracy, Hr, Sr, Rr = w90.read_tb("seedname_input/seedname_mos2.dat")
 
-    omega, sigma_tens = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(10, 10,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1)
+    omega, sigma_tens = absorption_spec(Sr=Sr, Hr=Hr, Rr=Rr, kPoints=k_grid(n_points=(30, 30,1)), lattice=lattice, cells=cells, range_omega=(0, 10), valence_idx=8, gamma_eV=0.1, eta_eV=0.1)
      
     plt.plot(omega, sigma_tens[:,0,0], 
              '.',

@@ -50,7 +50,7 @@ def transform_dipole(dk, shape_tuple):
     fft_dipole = np.reshape(fft_dipole, shape=(Nk, Nband, Nband, Ncoord), order='C')
     return fft_dipole
 
-def fold_to_wignerseitz(Rextent, lattice):
+def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
     """for a certain k-grid, take the R-grid resulting from the FFT and 
     and shift them by an integer number of unit cells that map it as close as 
      possible to the coordinate origin 
@@ -61,6 +61,8 @@ def fold_to_wignerseitz(Rextent, lattice):
         R = j vec{a} with 0 <= j < N
     are the points that give exactly i * n * j * 2 * pi /N in the exponent
     with the vectors b and a being defined following the solid-state-physics convention
+    If there are several possible shifts by whole unit cells that give the same minimal distance to the origin 
+    use all of them and mark as degeneracy
      """
     x = np.arange(stop=Rextent[0])
     y = np.arange(stop=Rextent[1])
@@ -80,23 +82,32 @@ def fold_to_wignerseitz(Rextent, lattice):
     zcells = np.arange(start=-2, stop=3, step=1)
     xdir, ydir, zdir = np.meshgrid(xcells, ycells, zcells)
     image_grid = np.column_stack((xdir.flatten(order='C'), ydir.flatten(order='C'), zdir.flatten(order='C')))
-    Rpoints_folded = np.zeros_like(Rpoints)
+    Rpoints_folded = []
+    ndeg = []
+    repeats = np.zeros(shape=len(Rpoints), dtype=int)
     for i, point in enumerate(Rpoints):
         images = point + image_grid * np.array([*Rextent])
         square_dist = np.einsum('ia,ab,ib->i', images, metric_tensor, images)
-        Rpoints_folded[i] = images[np.argmin(square_dist)]
-    # fig = plt.figure()
-    # ax = fig.add_subplot(projection='3d')
-    # ax.scatter(Rpoints_folded[:,0], Rpoints_folded[:,1], Rpoints_folded[:,2])
-    # plt.show()
-    return Rpoints_folded
-
-def get_equivalence_keys(Rpoints, Rextent):
-    keys = Rpoints % np.asarray(Rextent)
-    point_tuples = list(map(tuple, keys))
-    counts = Counter(point_tuples)
-    counts_per_elem = np.array([counts[x] for x in point_tuples])
-    return keys, counts_per_elem
+        min_dist = np.min(square_dist)
+        min_dist_images = np.isclose(square_dist, min_dist, atol=1e-4)
+        degeneracy = np.sum(min_dist_images)
+        repeats[i] = degeneracy
+        degeneracy = [degeneracy] * degeneracy
+        ndeg.extend(degeneracy)
+        min_dist_images = images[min_dist_images]
+        Rpoints_folded.extend(min_dist_images)
+    Rpoints_folded = np.array(Rpoints_folded)
+    ndeg = np.array(ndeg)
+    fft_matrices_folded = []
+    print(repeats)
+    for i, mat in enumerate(fft_matrices):
+        fft_matrices_folded.append(np.repeat(mat, axis=0, repeats=repeats)) 
+        assert np.shape(fft_matrices_folded[i])[0] == np.shape(Rpoints_folded)[0]
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(Rpoints_folded[:,0], Rpoints_folded[:,1], Rpoints_folded[:,2])
+    plt.show()
+    return Rpoints_folded, ndeg, fft_matrices_folded 
 
 def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filename="seedname_orth.dat"):
     """write wannier90 file with hamiltonian Hr and position-operator posr for a
@@ -143,8 +154,6 @@ def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filena
             for i in range(Norbs):
                 for j in range(Norbs):
                     print(f"{i+1} {j+1}\t{xre[i,j]:.18e}\t{xim[i,j]:.18e}\t{yre[i,j]:.18e}\t{yim[i,j]:.18e}\t{zre[i,j]:.18e}\t{zim[i,j]:.18e}", file=f)
-
-
     
 def orthogonal_wannierfile(filename_in, shape_tuple):
     start = time.time()
@@ -154,23 +163,21 @@ def orthogonal_wannierfile(filename_in, shape_tuple):
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
     Sr = transform_hamiltonian(Hk=Sk_orth, shape_tuple=shape_tuple)
     posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
-    Rpoints_WScell = fold_to_wignerseitz(Rextent=shape_tuple, lattice=lattice_au)
-    keys, counts_per_point = get_equivalence_keys(Rpoints=Rpoints_WScell, Rextent=shape_tuple)
+    fftmatrices = [Hr, posr]
+    Rpoints_folded, ndeg, fftmatrices_folded = fold_to_wignerseitz(Rextent=shape_tuple, lattice=lattice_au, fft_matrices=fftmatrices)
+    Hr_folded = fftmatrices_folded[0]
+    posr_folded = fftmatrices_folded[1]
+    print(f'maximal number of unit cells in any direction: {np.max(Rpoints_folded)}')
     print('start writing')
-    # write_wannierfile(Hr=Hr, posr=posr, Rpoints=Rpoints_WScell, degeneracy=counts_per_point, lattice_au=lattice_au, Sr=Sr)
+    write_wannierfile(Hr=Hr_folded, posr=posr_folded, Rpoints=Rpoints_folded, degeneracy=ndeg, lattice_au=lattice_au)
     stop = time.time()
     print(f"Function took {stop-start} s to execute")
 
 if __name__=="__main__":
-    fileA = "seedname_mos2_full.dat"
-    orthogonal_wannierfile(filename_in=fileA, shape_tuple=(11,11,1))
-    # frobenius_px = test_realspace_dipole(tb_file=fileA, shape_tuple=(500,1,1))
-    # frobenius_py = test_realspace_dipole(tb_file=fileA, shape_tuple=(1,500,1))
-    # R = np.arange(stop=500)
-    # plt.plot(R, frobenius_px[0,:,0,0])
-    # plt.plot(R, frobenius_px[1,:,0,0])
+    fileA = "seedname_input/seedname_mos2.dat"
+    # frobenius_dipole = test_realspace_dipole(tb_file=fileA, shape_tuple=(50,1,1))
+    # x = np.arange(50)
+    # plt.plot(x, frobenius_dipole[1,:,0,0])
     # plt.show()
-    # plt.plot(R, frobenius_py[0,0,:,0])
-    # plt.plot(R, frobenius_py[1,0,:,0])
-    # plt.show()
+    orthogonal_wannierfile(filename_in=fileA, shape_tuple=(50,50,1))
 
