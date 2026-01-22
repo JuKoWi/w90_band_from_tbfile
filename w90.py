@@ -195,18 +195,21 @@ def check_pos_op_properties(lattice_au, cells, S, R_au):
     """make sure that for every lattice point there is also the inverse in the list. 
     Also ensure that the pos. operator elements fulfill
         <m,0|r|n,R> = <n,0|r|m,-R> + R <n,0|m,-R> """
+    print(f"Up to {np.max(np.abs(cells))} unit cell shifts")
     s = {tuple(v) for v in cells}
     if not all(tuple(-v) in s for v in cells):
         print("Real space lattice points not inversion symmetric")
     has_symmetry = True
+    maxdiff = 0
     for i, cell in enumerate(cells):
         idx_minusR = np.where(np.all(cells == -cell, axis=1))[0]
         zero = R_au[i] - np.transpose(R_au[idx_minusR], axes=(0,2,1,3)).conj() - np.einsum('ba, b, rcd-> rcda', lattice_au, cell, np.transpose(S[idx_minusR], axes=(0,2,1)).conj())
-        if not np.allclose(zero, 0, atol=1e-8):
+        if np.max(np.abs(zero)) > maxdiff:
+            maxdiff = np.max(np.abs(zero))
+        if not np.allclose(zero, 0, atol=1e-9):
             has_symmetry = False
-            # print(cell)
     if not has_symmetry:
-        print("position operator does not fulfill symmetry requirement")
+        print(f"position operator does not fulfill symmetry requirement by up to {maxdiff}")
 
 
 """ Reads wsvec file from wannier90 -- incorporating this improves interpolation """

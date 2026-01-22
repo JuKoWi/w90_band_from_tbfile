@@ -3,6 +3,7 @@ from extract_properties_tbfile import *
 from collections import Counter
 import numpy as np
 import time
+import sys
 
 def test_realspace_momentum(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
@@ -42,9 +43,9 @@ def transform_dipole(dk, shape_tuple):
     """includes factor 1/N in backtransform because not included in R->k transform"""
     Nk, Nband, _, Ncoord = np.shape(dk)
     assert np.prod(shape_tuple) == Nk
-    dk = np.reshape(dk, shape=(*shape_tuple, Nband, Nband, Ncoord), order='C') #(kx, ky, kz, a, a, c)
+    dk = np.reshape(dk, shape=(*shape_tuple, Nband, Nband, Ncoord)) #(kx, ky, kz, a, a, c)
     fft_dipole = np.fft.fftn(a=dk, axes=(0,1,2))/Nk #(Rx, Ry, Rz, a, a, c)
-    fft_dipole = np.reshape(fft_dipole, shape=(Nk, Nband, Nband, Ncoord), order='C')
+    fft_dipole = np.reshape(fft_dipole, shape=(Nk, Nband, Nband, Ncoord) )
     return fft_dipole
 
 def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
@@ -88,6 +89,8 @@ def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
         min_dist = np.min(square_dist)
         min_dist_images = np.isclose(square_dist, min_dist, atol=1e-4)
         degeneracy = np.sum(min_dist_images)
+        if degeneracy > 1:
+            print(images[min_dist_images])
         repeats[i] = degeneracy
         degeneracy = [degeneracy] * degeneracy
         ndeg.extend(degeneracy)
@@ -99,10 +102,10 @@ def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
     for i, mat in enumerate(fft_matrices):
         fft_matrices_folded.append(np.repeat(mat, axis=0, repeats=repeats)) 
         assert np.shape(fft_matrices_folded[i])[0] == np.shape(Rpoints_folded)[0]
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-    ax.scatter(Rpoints_folded[:,0], Rpoints_folded[:,1], Rpoints_folded[:,2])
-    plt.show()
+    # fig = plt.figure()
+    # ax = fig.add_subplot(projection='3d')
+    # ax.scatter(Rpoints_folded[:,0], Rpoints_folded[:,1], Rpoints_folded[:,2])
+    # plt.show()
     return Rpoints_folded, ndeg, fft_matrices_folded 
 
 def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filename="seedname_orth.dat"):
@@ -173,6 +176,7 @@ def nonorthogonal_wannierfile(filename_in, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
     lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
     dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
+    # dk_orth = make_momentum_hermitian(dk_orth)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
     Sr = transform_hamiltonian(Hk=Sk_orth, shape_tuple=shape_tuple)
     posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
@@ -181,19 +185,28 @@ def nonorthogonal_wannierfile(filename_in, shape_tuple):
     Hr_folded = fftmatrices_folded[0]
     posr_folded = fftmatrices_folded[1]
     Sr_folded = fftmatrices_folded[2]
-    print(Rpoints_folded[0])
-    print(Sr_folded[0])
     print(f'maximal number of unit cells in any direction: {np.max(Rpoints_folded)}')
     print('start writing')
     write_wannierfile(Hr=Hr_folded, posr=posr_folded, Rpoints=Rpoints_folded, degeneracy=ndeg, lattice_au=lattice_au, Sr=Sr_folded, filename="seedname_nonorth.dat")
     stop = time.time()
     print(f"Function took {stop-start} s to execute")
 
+def compare_intermediate_steps(filename_A, filename_B, shape_tuple):
+    kPoints = k_grid(n_points=shape_tuple)
+    latticeA, cellsA, degeneraciesA, HrA, SrA, RrA = w90.read_tb(filename_A)
+    latticeB, cellsB, degeneraciesB, HrB, SrB, RrB = w90.read_tb(filename_B)
+    dk_orthA, Sk_orthA, Hk_orthA = get_dipole(Hr=HrA, Sr=SrA, Rr=RrA, kPoints=kPoints, cells=cellsA, lattice=latticeA, degeneracies=degeneraciesA)
+    dk_orthB, Sk_orthB, Hk_orthB = get_dipole(Hr=HrB, Sr=SrB, Rr=RrB, kPoints=kPoints, cells=cellsB, lattice=latticeB, degeneracies=degeneraciesB)
+    print(np.allclose(Sk_orthA, Sk_orthB))
+    print(np.allclose(dk_orthA, dk_orthB))
+    print(np.allclose(Hk_orthA, Hk_orthB))
+    pA, Sk_orthA, Hk_orthA = get_momentum(Hr=HrA, Sr=SrA, Rr=RrA, degeneracies=degeneraciesA, kPoints=kPoints, cells=cellsA, lattice=latticeA)
+    pB, Sk_orthB, Hk_orthB = get_momentum(Hr=HrB, Sr=SrB, Rr=RrB, degeneracies=degeneraciesB, kPoints=kPoints, cells=cellsB, lattice=latticeB)
+    print(np.allclose(pA, pB))
+    print(np.allclose(Sk_orthA, Sk_orthB))
+    print(np.allclose(Hk_orthA, Hk_orthB))
+
 if __name__=="__main__":
     fileA = "seedname_input/seedname_mos2.dat"
-    # frobenius_dipole = test_realspace_dipole(tb_file=fileA, shape_tuple=(50,1,1))
-    # x = np.arange(50)
-    # plt.plot(x, frobenius_dipole[1,:,0,0])
-    # plt.show()
     nonorthogonal_wannierfile(filename_in=fileA, shape_tuple=(20,20,1))
 

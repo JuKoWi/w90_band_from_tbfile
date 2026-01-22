@@ -6,7 +6,7 @@ import w90
 # bands_dftb = parse_dftb_band(filepath='dftb_bands/band_graphene.out', n_bands=8)
 # bands_dftb = [bands_dftb[:100], bands_dftb[100:200], bands_dftb[200:300]]
 
-lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb('seedname_input/seedname_mos2.dat')
+lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb('seedname_mos2_newgeom.dat')
 segments, labels, bands_alex, H_orth, S_orth, d_orth = bandstructure_orth_basis(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies)
 bands_alex = [w90.au_to_eV(b) for b in bands_alex]
 
