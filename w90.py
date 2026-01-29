@@ -320,6 +320,14 @@ def Rk_degenerate(cells, degeneracies, Rr, kFrac):
     Dk = np.einsum("...a,abcd->...bcd",  np.exp(1j * kr), Rr / degeneracies[:, np.newaxis, np.newaxis, np.newaxis])
     return Dk
 
+def grad_H_degenerate(cells, degeneracies, Hr, kFrac, lattice):
+    kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
+    R_cart = np.einsum('ab, cb->ca', lattice.T, cells) #lattice has lattice vectors as rows
+    R_cart_alt = np.einsum('ab, bc-> ac', cells, lattice)
+    assert np.allclose(R_cart, R_cart_alt)
+    grad_H = 1j * np.einsum("...c, cmn, cx -> ...mnx", np.exp(1j * kr), Hr/ degeneracies[:,None, None], R_cart)
+    return grad_H
+
 """ interpolates Hamiltonian to fractional k-point using the new interpolation scheme
     Hint: data can be obtained by read_wsvectb
 """
@@ -337,12 +345,6 @@ def Rk(cells, Rr, kFrac):
     return Rk
 
 
-# def grad_H(cells, H, kFrac, lattice):
-#     kr = 2 * np.pi * np.einsum("ab, ...b -> ...a", cells, kFrac)
-#     R_cart = cells @ lattice
-#     grad_H = 1j * 2 * np.pi * np.einsum("...a, abc, az -> ...bcz", np.exp(1j * kr), H, R_cart)
-#     # grad_H /= cells.shape[0]
-#     return grad_H
 
 # def to_regular_grid(cells, H, S, D):
 #     minx = np.min(cells[:,0])

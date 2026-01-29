@@ -20,7 +20,7 @@ def test_realspace_momentum(tb_file, shape_tuple):
 def test_realspace_dipole(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
     lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(tb_file)
-    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
+    dk_orth, Sk_orth, Hk_orth = get_dipole_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     dk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=dk_orth, Hk_orth=Hk_orth, Sk_orth=Sk_orth) # (k, a, a, c)
     Nk, Nband, _, Ncoord = np.shape(dk_bloch)
     dk_bloch = np.reshape(dk_bloch, shape=(*shape_tuple, Nband, Nband, Ncoord)) #(kx, ky, kz, a, a, c)
@@ -89,8 +89,8 @@ def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
         min_dist = np.min(square_dist)
         min_dist_images = np.isclose(square_dist, min_dist, atol=1e-4)
         degeneracy = np.sum(min_dist_images)
-        if degeneracy > 1:
-            print(images[min_dist_images])
+        # if degeneracy > 1:
+        #     print(images[min_dist_images])
         repeats[i] = degeneracy
         degeneracy = [degeneracy] * degeneracy
         ndeg.extend(degeneracy)
@@ -158,7 +158,7 @@ def orthogonal_wannierfile(filename_in, shape_tuple):
     start = time.time()
     kPoints = k_grid(n_points=shape_tuple)
     lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
-    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
+    dk_orth, Sk_orth, Hk_orth = get_dipole_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
     posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
     fftmatrices = [Hr, posr]
@@ -175,7 +175,7 @@ def nonorthogonal_wannierfile(filename_in, shape_tuple):
     start = time.time()
     kPoints = k_grid(n_points=shape_tuple)
     lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
-    dk_orth, Sk_orth, Hk_orth = get_dipole(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
+    dk_orth, Sk_orth, Hk_orth = get_dipole_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
     # dk_orth = make_momentum_hermitian(dk_orth)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
     Sr = transform_hamiltonian(Hk=Sk_orth, shape_tuple=shape_tuple)
@@ -192,21 +192,22 @@ def nonorthogonal_wannierfile(filename_in, shape_tuple):
     print(f"Function took {stop-start} s to execute")
 
 def compare_intermediate_steps(filename_A, filename_B, shape_tuple):
+    """seems to only give the same results with 20x20 grid and above"""
     kPoints = k_grid(n_points=shape_tuple)
     latticeA, cellsA, degeneraciesA, HrA, SrA, RrA = w90.read_tb(filename_A)
     latticeB, cellsB, degeneraciesB, HrB, SrB, RrB = w90.read_tb(filename_B)
-    dk_orthA, Sk_orthA, Hk_orthA = get_dipole(Hr=HrA, Sr=SrA, Rr=RrA, kPoints=kPoints, cells=cellsA, lattice=latticeA, degeneracies=degeneraciesA)
-    dk_orthB, Sk_orthB, Hk_orthB = get_dipole(Hr=HrB, Sr=SrB, Rr=RrB, kPoints=kPoints, cells=cellsB, lattice=latticeB, degeneracies=degeneraciesB)
+    dk_orthA, Sk_orthA, Hk_orthA = get_dipole_orth(Hr=HrA, Sr=SrA, Rr=RrA, kPoints=kPoints, cells=cellsA, lattice=latticeA, degeneracies=degeneraciesA)
+    dk_orthB, Sk_orthB, Hk_orthB = get_dipole_orth(Hr=HrB, Sr=SrB, Rr=RrB, kPoints=kPoints, cells=cellsB, lattice=latticeB, degeneracies=degeneraciesB)
     print(np.allclose(Sk_orthA, Sk_orthB))
     print(np.allclose(dk_orthA, dk_orthB))
     print(np.allclose(Hk_orthA, Hk_orthB))
     pA, Sk_orthA, Hk_orthA = get_momentum(Hr=HrA, Sr=SrA, Rr=RrA, degeneracies=degeneraciesA, kPoints=kPoints, cells=cellsA, lattice=latticeA)
     pB, Sk_orthB, Hk_orthB = get_momentum(Hr=HrB, Sr=SrB, Rr=RrB, degeneracies=degeneraciesB, kPoints=kPoints, cells=cellsB, lattice=latticeB)
-    print(np.allclose(pA, pB))
+    print(np.allclose(pA, pB, atol=1e-8))
     print(np.allclose(Sk_orthA, Sk_orthB))
     print(np.allclose(Hk_orthA, Hk_orthB))
 
 if __name__=="__main__":
-    fileA = "seedname_input/seedname_mos2.dat"
-    nonorthogonal_wannierfile(filename_in=fileA, shape_tuple=(20,20,1))
-
+    file = 'seedname_mos2_ase.dat'
+    nonorthogonal_wannierfile(filename_in=file, shape_tuple=(20,20,1))
+    compare_intermediate_steps(filename_A=file, filename_B='seedname_nonorth.dat', shape_tuple=(20,20,1))

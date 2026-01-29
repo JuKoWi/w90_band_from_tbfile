@@ -87,12 +87,10 @@ def orthogonalize(lattice, cells, degeneracies, Hr, Sr, Rr, kPoints):
     if not (A1 and B1):
         print("H and S not hermitian")
     S_inv_sqrt = diagonalization_inv_sqrt(Sk)
-    # S_inv_sqrt = newton_schulz(Sk=Sk)
-    for i, k in enumerate(kPoints):
-        assert np.allclose(S_inv_sqrt[i] @ Sk[i] @ S_inv_sqrt[i], np.eye(np.shape(Sk)[1]))
     if not np.all(sc.linalg.ishermitian(S_inv_sqrt, atol=1e-12)):
         print("Orthogonalization matrix not hermitian")
     grad_S_inv_sqrt, grad_H = grad_Hk_S_invsqrt(Hr=Hr, Sr=Sr, kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
+    assert np.allclose(grad_H, alternative_grad_Hk(Hr=Hr, Sr=Sr, kPoints=kPoints, lattice=lattice, cells=cells, degeneracies=degeneracies))
     gradS_inv_sqrt_dagger = np.transpose(grad_S_inv_sqrt.conj(), axes=(0,2,1,3))
     if not check_vector_hermitian(pk=gradS_inv_sqrt_dagger, atol=1e-11): #only hermitian with atol = 1e-9
         print("grad S-1/2 not hermitian")
@@ -105,9 +103,9 @@ def orthogonalize(lattice, cells, degeneracies, Hr, Sr, Rr, kPoints):
     S_inv_sqrt_dagger = np.transpose(S_inv_sqrt, axes=(0,2,1)).conj() #should not be necessary but maybe for numerical stability?
     dk_orth = -1j * np.einsum('kabz, kbc, kcd -> kadz', gradS_inv_sqrt_dagger, Sk, S_inv_sqrt) + np.einsum('kab,kbcz,kcd->kadz',S_inv_sqrt_dagger, Rk, S_inv_sqrt)
     hermitian_tol = np.max(np.abs(dk_orth - np.transpose(dk_orth, axes=(0,2,1,3)).conj()))
-    if not check_vector_hermitian(dk_orth, atol=1e-8):
+    if not check_vector_hermitian(dk_orth, atol=1e-9):
         print(f"Berry connection not hermitian by {hermitian_tol}")
-    if not check_vector_hermitian(grad_H, atol=1e-8):
+    if not check_vector_hermitian(grad_H, atol=1e-9):
         print("gradient of H not hermitian")
     return Sk_orth, Hk_orth, dk_orth, grad_H
 
@@ -129,6 +127,20 @@ def partial_Hk(Hr, kPoints, cells, component, degeneracies):
     if not np.all(sc.linalg.ishermitian(derivative, atol=1e-12)):
         print("partial Hk not hermitian")
     return derivative
+
+def alternative_grad_Hk(Hr, Sr, lattice, kPoints, cells, degeneracies):
+    """Alternative way to calculate grad H in orthogonal basis"""
+    Sk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
+    Hk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
+    S_inv_sqrt = diagonalization_inv_sqrt(Sk=Sk)
+    S_inv_sqrt_grad = gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice, cells=cells, degeneracies=degeneracies)
+    gradHk = gradient_H_atomic(Hr=Hr, kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
+    analytical_gradHk = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr,kFrac=kPoints, lattice=lattice)
+    assert np.allclose(analytical_gradHk, gradHk)
+    A = np.einsum('kabx, kbc, kcd -> kadx', S_inv_sqrt_grad, Hk, S_inv_sqrt)
+    B = np.einsum('kab,kbcx,kcd->kadx', S_inv_sqrt, gradHk, S_inv_sqrt)
+    C = np.einsum('kab,kbc,kcdx->kadx', S_inv_sqrt, Hk, S_inv_sqrt_grad)
+    return A+B+C
 
 def partial_Hk_S_invsqrt(Hr, Sr, kPoints, cells, component, degeneracies):
     stencil_shift_factor = 1e-3 # smaller stencil shift does not make sense
@@ -160,10 +172,11 @@ def partial_Hk_S_invsqrt(Hr, Sr, kPoints, cells, component, degeneracies):
     return derivativeS_inv_sqrt, derivativeH
 
 def grad_Hk_S_invsqrt(Hr, Sr, kPoints, cells, lattice, degeneracies):
+    """calculate gradient of hamiltonian in orthogonal basis and grad S_inv_sqrt"""
     Sa, Ha = partial_Hk_S_invsqrt(Hr=Hr, Sr=Sr, kPoints=kPoints, cells=cells, component=0, degeneracies=degeneracies)
     Sb, Hb = partial_Hk_S_invsqrt(Hr=Hr, Sr=Sr, kPoints=kPoints, cells=cells, component=1, degeneracies=degeneracies)
     Sc, Hc = partial_Hk_S_invsqrt(Hr=Hr, Sr=Sr, kPoints=kPoints, cells=cells, component=2, degeneracies=degeneracies)
-    rec_lat_inv = lattice/ (2 * np.pi) # equivalent to inverse of reciprocal lattice matrix. lattice has lattice vectors as rows
+    rec_lat_inv = lattice/(2 * np.pi) # equivalent to inverse of reciprocal lattice matrix. lattice has lattice vectors as rows. 
     grad_H = np.stack((Ha, Hb, Hc), axis=-1)
     grad_H = np.einsum('kabc, cd ->kabd', grad_H, rec_lat_inv)
     grad_S_inv_sqrt = np.stack((Sa, Sb, Sc), axis=-1)
@@ -210,18 +223,18 @@ def diagonalization_inv_sqrt(Sk):
     S_minushalf = np.einsum('kab, kbc, kcd -> kad', U, diags_minushalf, Udagger)
     return S_minushalf
 
-def newton_schulz(Sk, iters=20):
-    k, n, _ = Sk.shape
-    I = np.eye(n)[None, :, :]          # shape (1, n, n)
-    I = np.broadcast_to(I, (k, n, n))  # shape (k, n, n)
-    normS = np.linalg.norm(Sk, axis=(1, 2), keepdims=True)
-    X = I / np.sqrt(normS)
-    for _ in range(iters):
-        X2 = X @ X
-        X = 0.5 * X @ (3*I - Sk @ X2)
-    return X
+# def newton_schulz(Sk, iters=20):
+#     k, n, _ = Sk.shape
+#     I = np.eye(n)[None, :, :]          # shape (1, n, n)
+#     I = np.broadcast_to(I, (k, n, n))  # shape (k, n, n)
+#     normS = np.linalg.norm(Sk, axis=(1, 2), keepdims=True)
+#     X = I / np.sqrt(normS)
+#     for _ in range(iters):
+#         X2 = X @ X
+#         X = 0.5 * X @ (3*I - Sk @ X2)
+#     return X
 
-def gradient_H(Hr, kPoints, cells, lattice, degeneracies):
+def gradient_H_atomic(Hr, kPoints, cells, lattice, degeneracies):
     """Returns array of shape (kpoints, basis, basis, components)"""
     Ha = partial_Hk(Hr=Hr, kPoints=kPoints, cells=cells, component=0, degeneracies=degeneracies)
     Hb = partial_Hk(Hr=Hr, kPoints=kPoints, cells=cells, component=1, degeneracies=degeneracies)
@@ -241,9 +254,16 @@ def gradient_S_inv_sqrt(Sr, kPoints, lattice, cells, degeneracies):
     grad_S_inv_sqrt = np.einsum('kabc, cd ->kabd', grad_S_inv_sqrt, rec_lat_inv)
     return grad_S_inv_sqrt
 
-def get_dipole(Hr, Sr, Rr, kPoints, cells, lattice, degeneracies):
+def get_dipole_orth(Hr, Sr, Rr, kPoints, cells, lattice, degeneracies):
     Sk_orth, Hk_orth, dk_orth, grad_H = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints, degeneracies=degeneracies)
     return dk_orth, Sk_orth, Hk_orth
+
+def get_dipole_atomic(Rr, Sr, kPoints, cells, lattice, degeneracies):
+    gradS = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
+    gradS_alt = gradient_H_atomic(Hr=Sr, kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
+    assert np.allclose(gradS, gradS_alt)
+    Rk = w90.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
+    return Rk + 1j* gradS
 
 def get_momentum(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
     Sk_orth, Hk_orth, dk_orth, grad_H = orthogonalize(lattice=lattice, cells=cells, degeneracies=degeneracies, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=kPoints)
@@ -252,18 +272,33 @@ def get_momentum(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
     commutator = np.einsum('kabz, kbc->kacz', dk_orth, Hk_orth) - np.einsum('kab, kbcz -> kacz', Hk_orth, dk_orth)
     if not check_vector_hermitian(pk=1j*commutator, atol=1e-8):
         print("i * [d, H] is not hermitian")
-    p = -1j * commutator + grad_H
+    p = +1j * commutator + grad_H
     return p, Sk_orth, Hk_orth
+
+def alternative_momentum(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
+    Sk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
+    Rk = w90.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
+    Hk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
+    gradHk = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
+    eigvals, U = sc.linalg.eigh(Hk, Sk)
+    U_dagger = np.transpose(U, axes=(0,2,1))
+    term1 = np.einsum("kab, kbcz, kcd -> kadz", U, gradHk, U_dagger)
+    term2 = 1j * np.einsum("kab, kbcz, kcd, ka -> kadz", U, np.transpose(Rk, axes=(0,2,1,3)).conj(), U_dagger, eigvals)
+    term3 = -1j * np.einsum('kab, kbcz, kcd, kd -> kadz', U, Rk, U_dagger, eigvals)
+    assert check_vector_hermitian(pk = term1 + term2 + term3, atol=1e-7)
+    return term1 + term2 + term3
 
 def get_rec_lattice(lattice):
     """return matrix with rec. lattice vectors as columns
         ATTENTION: Takes lattice as matrix with lattice vectors as ROWS(!)
+        and considers factor of 2 pi
     """
     a1, a2, a3 = lattice
     volume = np.dot(a1, np.cross(a2, a3))
     b1 = 2 * np.pi * np.cross(a2, a3) / volume
     b2 = 2 * np.pi * np.cross(a3, a1) / volume
     b3 = 2 * np.pi * np.cross(a1, a2) / volume
+    assert np.allclose(np.linalg.inv(lattice.T) * 2 * np.pi, [b1, b2, b3])
     return np.array([b1, b2, b3]).T
 
 def to_bloch_basis(pk, Hk_orth, Sk_orth):
@@ -377,16 +412,19 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_ome
         returns sigma tensor in cartesian coordinates 
     valence_idx in python style indexing"""
     start = time.time()
-    pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
-    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
+    pk_orth, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
+    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk_orth, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
+    alt_momentum = alternative_momentum(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kPoints, cells=cells, lattice=lattice)
+    print(np.allclose(pk_bloch, alt_momentum))
     hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
     print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
-    pk = make_momentum_hermitian(pk_bloch)
-    pk = pk[:,:,:,:2]
+    pk = make_momentum_hermitian(alt_momentum)
+    # pk = pk[:,:,:,:2]
 
     Nk = kPoints.shape[0]
     Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
     rec_lat = get_rec_lattice(lattice=lattice)
+    print(rec_lat)
     omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
     omega = omega[omega > 1e-2]
     Nomega = omega.size
@@ -399,31 +437,32 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_ome
     Ef = (bands[bandgap_ind, valence_idx] + bands[bandgap_ind, valence_idx+1]) /2
     print(f"E_f set to {w90.au_to_eV(Ef)}")
 
-    sigma_tens = np.zeros((Nomega, 2, 2), dtype=complex)
+    sigma_tens = np.zeros((Nomega, 3, 3), dtype=complex)
     for i in range(valence_idx+1):
         f = 2 * fermi_dirac(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
         for j in range(valence_idx+1, Nb):
             dE = bands[:, j] - bands[:, i]      # (Nk,)
-            dE_inv = np.zeros_like(dE)
-            dE_inv[dE > 1e-4] = 1/dE[dE > 1e-4]
+            # dE_inv = np.zeros_like(dE)
+            # dE_inv[dE > 1e-4] = 1/dE[dE > 1e-4]
             p = pk[:, i, j, :]             # (Nk, 3)
+            # print(p)
             M_ab = np.einsum('ka,kb->abk', p, p.conj())
             denom = ((dE[None, :]**2 - omega2[:, None])**2 + gamma**2 * omega2[:, None])
             lorentz = f * gamma * omega2[:, None] / denom   # (Nomega, Nk)
-            sigma_tens += np.einsum('abk,ok->oab', M_ab*dE_inv, lorentz)
-    for i in range(Nb):
-        dfdE = 2 * fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
-        k = np.einsum('ab,kb-> ka', rec_lat, kPoints)
-        p = pk[:,i,i,:] - k[:,:2] # leave out factor Sk_ii because it is 1 anyway
-        M_ab = np.einsum('ka, kb->abk', p, p.conj())
-        lorentz = eta / ( omega2[:,None] + eta**2)
-        sigma_tens += 0.5 * np.einsum('abk, ok -> oab', M_ab, lorentz*dfdE) 
+            sigma_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
+    # for i in range(Nb):
+    #     dfdE = 2 * fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
+    #     k = np.einsum('ab,kb-> ka', rec_lat, kPoints)
+    #     p = pk[:,i,i,:] - k[:,:2] # leave out factor Sk_ii because it is 1 anyway
+    #     M_ab = np.einsum('ka, kb->abk', p, p.conj())
+    #     lorentz = eta / ( omega2[:,None] + eta**2)
+    #     sigma_tens += 0.5 * np.einsum('abk, ok -> oab', M_ab, lorentz*dfdE) 
     print(f"maximal im of eps2 = {np.max(np.imag(sigma_tens))}")
     sigma_tens = np.real(sigma_tens)
     sigma_tens /= np.max(np.abs(sigma_tens))
     diagonal_mask = np.eye(sigma_tens.shape[1])
     max_offdiag = np.max(np.abs(sigma_tens - diagonal_mask * sigma_tens))
-    print(f"maximal offdiagonal value of eps: {max_offdiag}")
+    print(f"maximal offdiagonal value of sigma: {max_offdiag}")
     end = time.time()
     print(f"Calculation took {end - start} s")
     np.save(file='sigma_tens', arr=sigma_tens)
@@ -450,6 +489,7 @@ def spectrum_in_direction(sigma_tens, vec):
     """calculate the spectrum in a certain direction. Assumes that the tensors 
     components are with respect to cartesian basis vectors"""
     unit_vec = vec/np.linalg.norm(vec)
+    return np.einsum('a, oab, b-> o', unit_vec, sigma_tens, unit_vec)
 
 
 if __name__ == "__main__":
@@ -459,64 +499,59 @@ if __name__ == "__main__":
     # bands_own = parse_dftb_band(filepath="band_mos2_own_27band_denssup_corrected_eigval.out", n_bands=27)
     # bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
 
-    # lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb("seedname_input/seedname_graphene.dat")
 
-    # omega, sigma_tens = absorption_spec(Sr=Sr, 
-    #                                     Hr=Hr, 
-    #                                     Rr=Rr, 
-    #                                     kPoints=k_grid(n_points=(150, 150,1)), 
-    #                                     lattice=lattice,
-    #                                     cells=cells,
-    #                                     range_omega=(0, 10),
-    #                                     valence_idx=3,
-    #                                     gamma_eV=0.1, 
-    #                                     eta_eV=0.1,
-    #                                     degeneracies=degeneracies,
-    #                                     T_K=300
-    #                                     )
-    lattice, cells, degeneracies1, Hr, Sr, Rr = w90.read_tb("seedname_nonorth.dat")
-
-    omega, sigma_tens = absorption_spec(Sr=Sr, 
+    lattice, cells, degeneracies2, Hr, Sr, Rr = w90.read_tb("seedname_mos2_ase.dat")
+    # dk1, Sk_orth, Hk_orth= get_dipole(degeneracies=degeneracies2, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=[[0.2, 0, 0]], cells=cells, lattice=lattice)
+    # dk2, Sk_orth, Hk_orth= get_dipole(degeneracies=degeneracies2, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=[[-0.2, 0, 0]], cells=cells, lattice=lattice)
+    # dkA = dk1[0,1,0]
+    # dkB = dk2[0,1,0]
+    # print(dkA)
+    # print(dkB)
+    # sys.exit()
+    kcart1 = np.array([0.5,0,0])
+    kcart2 = np.array([-0.5,0,0])
+    kfrac1 = 1/(2*np.pi) * lattice @ kcart1
+    kfrac2 = 1/(2*np.pi) * lattice @ kcart2
+    omega, sigma_tens2 = absorption_spec(Sr=Sr, 
                                         Hr=Hr, 
                                         Rr=Rr, 
-                                        kPoints=k_grid(n_points=(20,20,1)), 
+                                        kPoints=k_grid(n_points=(10, 10, 1)), 
+                                        # kPoints=np.array([kfrac1, kfrac2 ]),
                                         lattice=lattice,
                                         cells=cells,
                                         range_omega=(0, 10),
                                         valence_idx=8,
                                         gamma_eV=0.1, 
                                         eta_eV=0.1, 
-                                        degeneracies=degeneracies1,
-                                    )
+                                        degeneracies=degeneracies2)
 
-    # lattice, cells, degeneracies2, Hr, Sr, Rr = w90.read_tb("seedname_input/seedname_mos2.dat")
-    # omega, sigma_tens2 = absorption_spec(Sr=Sr, 
-    #                                     Hr=Hr, 
-    #                                     Rr=Rr, 
-    #                                     kPoints=k_grid(n_points=(20, 20, 1)), 
-    #                                     lattice=lattice,
-    #                                     cells=cells,
-    #                                     range_omega=(0, 10),
-    #                                     valence_idx=8,
-    #                                     gamma_eV=0.1, 
-    #                                     eta_eV=0.1, 
-    #                                     degeneracies=degeneracies2)
+    # rot120deg = np.array([[-0.5, -np.sqrt(3)/2], [np.sqrt(3)/2, -0.5]])
+    # sigma_tens2 = np.einsum('ab, obc, cd -> oad', rot120deg.T, sigma_tens2, rot120deg )
+    print(sigma_tens2[2000])
+    # print(sigma_tens2[2000])
+    # plt.plot(omega, spectrum_in_direction(sigma_tens=sigma_tens2, vec=[1,0]))
+    # plt.plot(omega, spectrum_in_direction(sigma_tens=sigma_tens2, vec=[-0.5,np.sqrt(3)/2]))
+    # plt.show()
 
-    print(sigma_tens[2000])
-
-    plt.plot(omega, sigma_tens[:,0,1], 
-             '.',
-               ms=1)
-    # plt.plot(omega, sigma_tens2[:,0,0],
+    # plt.plot(omega, sigma_tens[:,0,1], 
     #          '.',
     #            ms=1)
+    plt.plot(omega, sigma_tens2[:,1,0],
+             '.',
+               ms=1)
+    plt.plot(omega, sigma_tens2[:,0,1],
+             '.',
+               ms=1)
     plt.show()
 
 
-    plt.plot(omega, sigma_tens[:,1,0], 
-             '.',
-               ms=1)
-    # plt.plot(omega, sigma_tens2[:,1,1],
+    # plt.plot(omega, sigma_tens[:,1,0], 
     #          '.',
     #            ms=1)
+    plt.plot(omega, sigma_tens2[:,0,0],
+             '.',
+               ms=1)
+    plt.plot(omega, sigma_tens2[:,1,1],
+             '.',
+               ms=1)
     plt.show()
