@@ -1,6 +1,6 @@
-from from_tb.extract_properties_tbfile import absorption_spec
+from from_tb.extract_properties_tbfile import abs_spec_inter_intra_separate
 from from_tb.utils import k_grid_bz, k_grid
-import from_tb.w90 as w90
+import from_tb.parse_and_FT as parse_and_FT
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 # bands_own = parse_dftb_band(filepath="band_mos2_own_27band_denssup_corrected_eigval.out", n_bands=27)
 # bands_own = [bands_own[:100], bands_own[100:200], bands_own[200:300]]
 
-lattice, cells, degeneracies2, Hr, Sr, Rr = w90.read_tb("seedname_mos2_ase.dat")
+# lattice, cells, degeneracies2, Hr, Sr, Rr = w90.read_tb("seedname_mos2_ase.dat")
+lattice, cells, degeneracies2, Hr, Sr, Rr = parse_and_FT.read_tb("seedname_tb.dat")
 # dk1, Sk_orth, Hk_orth= get_dipole(degeneracies=degeneracies2, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=[[0.2, 0, 0]], cells=cells, lattice=lattice)
 # dk2, Sk_orth, Hk_orth= get_dipole(degeneracies=degeneracies2, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=[[-0.2, 0, 0]], cells=cells, lattice=lattice)
 # dkA = dk1[0,1,0]
@@ -22,12 +23,12 @@ kcart1 = np.array([0.5,0,0])
 kcart2 = np.array([-0.5,0,0])
 kfrac1 = 1/(2*np.pi) * lattice @ kcart1
 kfrac2 = 1/(2*np.pi) * lattice @ kcart2
-omega, sigma_tens2 = absorption_spec(Sr=Sr, 
+omega, sigma_tens2 = abs_spec_inter_intra_separate(Sr=Sr, 
                                     Hr=Hr, 
                                     Rr=Rr, 
                                     # kPoints=k_grid(n_points=(10, 10, 1)), 
                                     # kPoints=np.array([kfrac1, kfrac2 ]),
-                                    kPoints=k_grid_bz(lattice=lattice, shape=(30,30,1)),
+                                    kPoints=k_grid_bz(lattice=lattice, shape=(20,20,1)),
                                     lattice=lattice,
                                     cells=cells,
                                     range_omega=(0, 10),

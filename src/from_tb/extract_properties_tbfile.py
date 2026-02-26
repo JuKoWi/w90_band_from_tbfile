@@ -1,4 +1,4 @@
-import src.from_tb.w90 as w90
+import from_tb.parse_and_FT as parse_and_FT
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,11 +24,12 @@ def bandstructure_orth_basis(lattice, cells, degeneracies, Hr, Sr, Rr):
         d_orth.append(dk_orth)
     return segments, labels, bands_orth, H_orth, S_orth, d_orth 
 
+
 def orthogonalize(lattice, cells, degeneracies, Hr, Sr, Rr, kPoints):
     """converts all matrices to orthogonal basis"""
-    Hk = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints, degeneracies=degeneracies)
-    Sk = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints, degeneracies=degeneracies)
-    Rk = w90.Rk_degenerate(cells=cells, Rr=Rr, kFrac=kPoints, degeneracies=degeneracies) # not hermitian!
+    Hk = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints, degeneracies=degeneracies)
+    Sk = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints, degeneracies=degeneracies)
+    Rk = parse_and_FT.Rk_degenerate(cells=cells, Rr=Rr, kFrac=kPoints, degeneracies=degeneracies) # not hermitian!
     A1 = np.all(sc.linalg.ishermitian(Sk, atol=1e-12))
     B1 = np.all(sc.linalg.ishermitian(Hk, atol=1e-12))
     if not (A1 and B1):
@@ -94,10 +95,10 @@ def partial_Hk(Hr, kPoints, cells, component, degeneracies):
     kPoints_minus = kPoints - stencil_shift
     kPoints_2plus = kPoints + 2 * stencil_shift
     kPoints_2minus = kPoints - 2 * stencil_shift
-    H_plus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_plus, degeneracies=degeneracies) 
-    H_minus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_minus, degeneracies=degeneracies)
-    H_2plus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2plus, degeneracies=degeneracies)
-    H_2minus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2minus, degeneracies=degeneracies)
+    H_plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_plus, degeneracies=degeneracies) 
+    H_minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_minus, degeneracies=degeneracies)
+    H_2plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2plus, degeneracies=degeneracies)
+    H_2minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2minus, degeneracies=degeneracies)
     derivative = (8 * H_plus - 8 * H_minus + H_2minus - H_2plus)/(12 * np.linalg.norm(stencil_shift, axis=-1))
     if not np.all(sc.linalg.ishermitian(derivative, atol=1e-12)):
         print("partial Hk not hermitian")
@@ -112,14 +113,14 @@ def partial_Hk_S_invsqrt(Hr, Sr, kPoints, cells, component, degeneracies):
     kPoints_minus = kPoints - stencil_shift
     kPoints_2plus = kPoints + 2 * stencil_shift
     kPoints_2minus = kPoints - 2 * stencil_shift
-    H_plus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_plus, degeneracies=degeneracies) 
-    H_minus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_minus, degeneracies=degeneracies)
-    H_2plus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2plus, degeneracies=degeneracies)
-    H_2minus = w90.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2minus, degeneracies=degeneracies)
-    S_plus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_plus, degeneracies=degeneracies)
-    S_minus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_minus, degeneracies=degeneracies)
-    S_2plus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2plus, degeneracies=degeneracies)
-    S_2minus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2minus, degeneracies=degeneracies)
+    H_plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_plus, degeneracies=degeneracies) 
+    H_minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_minus, degeneracies=degeneracies)
+    H_2plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2plus, degeneracies=degeneracies)
+    H_2minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints_2minus, degeneracies=degeneracies)
+    S_plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_plus, degeneracies=degeneracies)
+    S_minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_minus, degeneracies=degeneracies)
+    S_2plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2plus, degeneracies=degeneracies)
+    S_2minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2minus, degeneracies=degeneracies)
     Shalf_plus = diagonalization_inv_sqrt(S_plus)
     Shalf_minus = diagonalization_inv_sqrt(S_minus)
     Shalf_2plus = diagonalization_inv_sqrt(S_2plus)
@@ -141,10 +142,10 @@ def partial_Sminushalf(Sr, kPoints, cells, degeneracies, component):
     kPoints_minus = kPoints - stencil_shift
     kPoints_2plus = kPoints + 2 * stencil_shift
     kPoints_2minus = kPoints - 2 * stencil_shift
-    S_plus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_plus, degeneracies=degeneracies)
-    S_minus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_minus, degeneracies=degeneracies)
-    S_2plus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2plus, degeneracies=degeneracies)
-    S_2minus = w90.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2minus, degeneracies=degeneracies)
+    S_plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_plus, degeneracies=degeneracies)
+    S_minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_minus, degeneracies=degeneracies)
+    S_2plus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2plus, degeneracies=degeneracies)
+    S_2minus = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints_2minus, degeneracies=degeneracies)
     Shalf_plus = diagonalization_inv_sqrt(S_plus)
     Shalf_minus = diagonalization_inv_sqrt(S_minus)
     Shalf_2plus = diagonalization_inv_sqrt(S_2plus)
@@ -164,12 +165,12 @@ def partial_Sminushalf(Sr, kPoints, cells, degeneracies, component):
 
 def alternative_grad_Hk(Hr, Sr, lattice, kPoints, cells, degeneracies):
     """Alternative way to calculate grad H in orthogonal basis"""
-    Sk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
-    Hk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
+    Sk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
+    Hk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
     S_inv_sqrt = diagonalization_inv_sqrt(Sk=Sk)
     S_inv_sqrt_grad = gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice, cells=cells, degeneracies=degeneracies)
     gradHk = gradient_H_atomic(Hr=Hr, kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
-    analytical_gradHk = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr,kFrac=kPoints, lattice=lattice)
+    analytical_gradHk = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr,kFrac=kPoints, lattice=lattice)
     assert np.allclose(analytical_gradHk, gradHk)
     A = np.einsum('kabx, kbc, kcd -> kadx', S_inv_sqrt_grad, Hk, S_inv_sqrt)
     B = np.einsum('kab,kbcx,kcd->kadx', S_inv_sqrt, gradHk, S_inv_sqrt)
@@ -215,10 +216,10 @@ def get_dipole_orth(Hr, Sr, Rr, kPoints, cells, lattice, degeneracies):
     return dk_orth, Sk_orth, Hk_orth
 
 def get_dipole_atomic(Rr, Sr, kPoints, cells, lattice, degeneracies):
-    gradS = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
+    gradS = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
     gradS_alt = gradient_H_atomic(Hr=Sr, kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     assert np.allclose(gradS, gradS_alt)
-    Rk = w90.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
+    Rk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
     return Rk + 1j* gradS
 
 """Calculate momentum in different bases"""
@@ -236,11 +237,11 @@ def get_momentum_orth(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
 
 def get_momentum_bloch(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
     """Calculate momentum directly in Bloch basis according to formula 21 from 10.21468/SciPostPhysCore.6.1.002"""
-    Sk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
-    Rk = w90.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
-    Hk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
-    gradS_atomic = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
-    gradH_atomic = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
+    Sk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
+    Rk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
+    Hk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
+    gradS_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
+    gradH_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
     Ak_atomic = Rk + 1j * gradS_atomic
     eigvals, U = sc.linalg.eigh(Hk, Sk)
     U_dagger = np.transpose(U, axes=(0,2,1)).conj()
@@ -253,13 +254,14 @@ def get_momentum_bloch(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
 
 def get_momentum_bloch_lee(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
     """Calculate momentum directly in Bloch basis according to formula 7 from 10.1103/PhysRevB.98.115115"""
-    Sk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
-    Rk = w90.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
-    Hk = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
-    gradH_atomic = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
-    gradS_atomic = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
+    Sk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
+    Rk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
+    Hk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
+    gradH_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
+    gradS_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
     eigvals, U = sc.linalg.eigh(Hk, Sk)
     U_dagger = np.transpose(U, axes=(0,2,1)).conj()
+    Rk_dagger = np.transpose(Rk, axes=(0,2,1,3)).conj()
     term1 = np.einsum('kab, kbcz, kcd -> kadz', U_dagger, gradH_atomic, U)
     term2 = - np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, gradS_atomic, U, eigvals)
     term3 = 1j * np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, Rk, U, eigvals)
@@ -267,6 +269,25 @@ def get_momentum_bloch_lee(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
     if not check_vector_hermitian(pk= term1 + term2 + term3 + term4, atol=1e-8):
         print(f"Momentum after Lee-formula is not hermitian")
     return term1 + term2 + term3 + term4
+
+def get_momentum_bloch_file(lattice, cells, degeneracies, Hr, Sr, pr, kPoints):
+    """calculate momentum directly from nabla_r between local orbitals"""
+    Hk_at = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints, degeneracies=degeneracies)
+    Sk_at = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints, degeneracies=degeneracies)
+    pk_at = -1j *parse_and_FT.Rk_degenerate(cells=cells, Rr=pr, kFrac=kPoints, degeneracies=degeneracies) # not hermitian!
+    vals, U = sc.linalg.eigh(Hk_at, Sk_at)
+    U_dagger = np.linalg.matrix_transpose(U.conj())
+    pk_bloch = np.einsum('kab,kbcz,kcd->kadz', U_dagger, pk_at, U)
+    Hk_bloch = np.einsum('kab,kbc,kcd->kad', U_dagger, Hk_at, U)
+    Sk_bloch = np.einsum('kab, kbc, kcd-> kad', U_dagger, Sk_at, U)
+    K, a, b = Sk_bloch.shape
+    I = np.eye(a, dtype=Sk_bloch.dtype)
+    if not np.allclose(Sk_bloch, I):
+        print("Bloch basis conversion does not leave S as identity")
+    hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
+    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
+    return pk_bloch
+    
 
 def to_bloch_basis(pk, Hk_orth, Sk_orth):
     vals, U = sc.linalg.eigh(Hk_orth)
@@ -283,55 +304,14 @@ def to_bloch_basis(pk, Hk_orth, Sk_orth):
 def make_momentum_hermitian(pk):
     return 0.5 * (pk + np.transpose(pk, axes=(0,2,1,3)).conj())
 
-def absorption_spec_simple(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_omega, valence_idx, gamma_eV):
-    start = time.time()
-    pk, Sk_orth, Hk_orth = get_momentum_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
-    pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
-    hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
-    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
-    # pk = make_momentum_hermitian(pk_bloch)
-    pk = pk[:,:,:,:2]
-
-    Nk = kPoints.shape[0]
-    Nk, Nb = pk_bloch.shape[0], pk_bloch.shape[1]
-    rec_lat = get_rec_lattice(lattice=lattice)
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
-    omega = omega[omega > 1e-2]
-    Nomega = omega.size
-    gamma = w90.eV_to_au(gamma_eV)
-    omega2 = omega**2 
-
-    bands = np.real(np.einsum('kaa->ka', Hk_bloch))
-    sigma_tens = np.zeros((Nomega, 3, 3), dtype=complex)
-    """
-        for 200x200 k and 5000 omega: 203 s 
-    """
-    print(valence_idx)
-    for i in range(valence_idx + 1):
-        for j in range(valence_idx+1, Nb):
-            print(f"{i} {j}")
-            dE = bands[:, j] - bands[:, i]      # (Nk,)
-            dE_inv = 1/dE
-            dE_inv[dE_inv > 1e4] = 0
-            p = pk_bloch[:, j, i, :]             # (Nk, 3)
-            M_ab = np.einsum('ka,kb->abk', p, p.conj(), optimize=True)
-            denom = ((dE[None, :]**2 - omega2[:, None])**2
-                     + gamma**2 * omega2[:, None])
-            lorentz = gamma * omega2[:, None] / denom   # (Nomega, Nk)
-            sigma_tens += np.einsum('abk,ok->oab', M_ab * dE_inv, lorentz)
-    sigma_tens = np.real(sigma_tens) 
-    sigma_tens /= np.max(np.abs(sigma_tens))
-    end = time.time()
-    print(f"Calculation took {end - start} s")
-    return w90.au_to_eV(omega), sigma_tens
-
-def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_omega, valence_idx, gamma_eV, eta_eV, T_K=0):
+def abs_spec_inter_intra_separate(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_omega, valence_idx, gamma_eV, eta_eV, T_K=0):
     """
         returns sigma tensor in cartesian coordinates 
+        inter and intraband term calcualted separately
     valence_idx in python style indexing"""
     start = time.time()
-    Hk_atomic = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
-    Sk_atomic = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
+    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
+    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
     eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
     pk = get_momentum_bloch(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kPoints, cells=cells, lattice=lattice)
     hermitian_tolerance = np.max(np.abs(pk - np.transpose(pk, axes=(0,2,1,3)).conj()))
@@ -342,28 +322,26 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_ome
     Nk = kPoints.shape[0]
     Nk, Nb = pk.shape[0], pk.shape[1]
     rec_lat = get_rec_lattice(lattice=lattice)
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
+    omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
     omega = omega[omega > 1e-2]
     Nomega = omega.size
-    gamma = w90.eV_to_au(gamma_eV)
-    eta = w90.eV_to_au(eta_eV)
+    gamma = parse_and_FT.eV_to_au(gamma_eV)
+    eta = parse_and_FT.eV_to_au(eta_eV)
     omega2 = omega**2 
 
     bands = eigvals
     bandgap_ind = np.argmin(np.abs(bands[:,valence_idx+1]- bands[:, valence_idx]))
     Ef = (bands[bandgap_ind, valence_idx] + bands[bandgap_ind, valence_idx+1]) /2
-    print(f"E_f set to {w90.au_to_eV(Ef)}")
+    print(f"E_f set to {parse_and_FT.au_to_eV(Ef)}")
 
     sigma_tens = np.zeros((Nomega, 2, 2), dtype=complex)
     for i in range(valence_idx+1):
         f = 2 * fermi_dirac(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
         for j in range(valence_idx+1, Nb):
-            print(i)
-            print(j)
             dE = bands[:, j] - bands[:, i]      # (Nk,)
             # dE_inv = np.zeros_like(dE)
             # dE_inv[dE > 1e-4] = 1/dE[dE > 1e-4]
-            p = pk[:, i, j, :]             # (Nk, 3)
+            p = pk[:, j, i, :]             # (Nk, 3)
             # print(p)
             M_ab = np.einsum('ka,kb->abk', p, p.conj())
             denom = ((dE[None, :]**2 - omega2[:, None])**2 + gamma**2 * omega2[:, None])
@@ -385,29 +363,97 @@ def absorption_spec(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_ome
     end = time.time()
     print(f"Calculation took {end - start} s")
     np.save(file='sigma_tens', arr=sigma_tens)
-    return w90.au_to_eV(omega), sigma_tens
+    return parse_and_FT.au_to_eV(omega), sigma_tens
 
 def absorption_spec_lee(Sr, Hr, Rr, kFrac, lattice, cells, degeneracies, valence_num, eta_eV, range_omega=(1,10), T_K=0):
     """valence_num: number of valence bands"""
-    Hk_atomic = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
-    Sk_atomic = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
+    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
+    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
     eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
-    pk_bloch = get_momentum_bloch(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice=lattice)
+    pk_bloch = get_momentum_bloch_lee(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice=lattice)
+    print(f"Max x-component {np.max(np.abs(pk_bloch[:,:,:,0]))}")
+    print(f"Max y-component {np.max(np.abs(pk_bloch[:,:,:,1]))}")
+    print(f"Max z-component {np.max(np.abs(pk_bloch[:,:,:,2]))}")
+    
+    hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
+    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
+    # pk_bloch = make_momentum_hermitian(pk=pk_bloch)
 
     bands = eigvals
-    Nbands = np.shape(eigvals)[1]
-    omega = np.linspace(w90.eV_to_au(range_omega[0]),w90.eV_to_au(range_omega[1]),5000)
+    Nk, Nbands = np.shape(eigvals)
+    omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
+    nomega = np.shape(omega)[0]
     bandgap_ind = np.argmin(np.abs(bands[:,valence_num]- bands[:, valence_num-1]))
     Ef = (bands[bandgap_ind, valence_num-1] + bands[bandgap_ind, valence_num]) /2
+    print(f"Fermi level at {parse_and_FT.au_to_eV(Ef)}")
+    eta = parse_and_FT.eV_to_au(eta_eV)
 
-    for m in range(stop=valence_num):
+    sigma = np.zeros(shape=(nomega, 3, 3), dtype=complex)
+    for m in range(Nbands):
         fk_m = fermi_dirac(T_K=T_K, E_state_au=bands[:,m], mu_au=Ef)
-        for n in range(valence_num, Nbands):
+        for n in range(Nbands):
             fk_n = fermi_dirac(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef)
-            fermi_fac = (fk_m - fk_n)/(bands[:,m]- bands[:,n])
+            dE = bands[:,m] - bands[:,n]
+            safe_dE = np.where(np.abs(dE) > 1e-4, dE, 1.0)
+            ratio = 2 * (fk_m - fk_n) / safe_dE
+            fermi_fac = np.where(np.abs(dE) > 1e-4,
+                                 ratio,
+                                 2*fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef))
+            pk1 = pk_bloch[:,m,n,:]
+            pk2 = pk_bloch[:,n,m,:]
+            pk_prod = np.einsum('ka, kb -> kab', pk1, pk2)
+            dE = bands[:,m] - bands[:,n]
+            denominator = 1 /(omega[:,None] + dE[None,:] + 1j*eta)
+            sigma += -1j * np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator)
+    sigma = np.real(sigma)
+    sigma /= np.max(np.abs(sigma[:,:2,:2]))
+    return parse_and_FT.au_to_eV(omega), sigma
 
+def absorption_spec_file(Sr, Hr, pr, kFrac, lattice, cells, degeneracies, valence_num, eta_eV, range_omega=(1,10), T_K=0):
+    """
+    absorption spectrum with real-space momentum elements directly from file
+    valence_num: number of valence bands"""
+    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
+    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
+    eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
+    pk_bloch = get_momentum_bloch_file(Hr=Hr, Sr=Sr, pr=pr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice=lattice)
+    print(f"Max x-component {np.max(np.abs(pk_bloch[:,:,:,0]))}")
+    print(f"Max y-component {np.max(np.abs(pk_bloch[:,:,:,1]))}")
+    print(f"Max z-component {np.max(np.abs(pk_bloch[:,:,:,2]))}")
+    
+    hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
+    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
+    # pk_bloch = make_momentum_hermitian(pk=pk_bloch)
 
+    bands = eigvals
+    Nk, Nbands = np.shape(eigvals)
+    omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
+    nomega = np.shape(omega)[0]
+    bandgap_ind = np.argmin(np.abs(bands[:,valence_num]- bands[:, valence_num-1]))
+    Ef = (bands[bandgap_ind, valence_num-1] + bands[bandgap_ind, valence_num]) /2
+    print(f"Fermi level at {parse_and_FT.au_to_eV(Ef)}")
+    eta = parse_and_FT.eV_to_au(eta_eV)
 
+    sigma = np.zeros(shape=(nomega, 3, 3), dtype=complex)
+    for m in range(Nbands):
+        fk_m = fermi_dirac(T_K=T_K, E_state_au=bands[:,m], mu_au=Ef)
+        for n in range(Nbands):
+            fk_n = fermi_dirac(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef)
+            dE = bands[:,m] - bands[:,n]
+            safe_dE = np.where(np.abs(dE) > 1e-4, dE, 1.0)
+            ratio = 2 * (fk_m - fk_n) / safe_dE
+            fermi_fac = np.where(np.abs(dE) > 1e-4,
+                                 ratio,
+                                 2*fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef))
+            pk1 = pk_bloch[:,m,n,:]
+            pk2 = pk_bloch[:,n,m,:]
+            pk_prod = np.einsum('ka, kb -> kab', pk1, pk2)
+            dE = bands[:,m] - bands[:,n]
+            denominator = 1 /(omega[:,None] + dE[None,:] + 1j*eta)
+            sigma += -1j * np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator)
+    sigma = np.real(sigma)
+    sigma /= np.max(np.abs(sigma[:,:2,:2]))
+    return parse_and_FT.au_to_eV(omega), sigma
 
 def spectrum_in_direction(sigma_tens, vec):
     """calculate the spectrum in a certain direction. Assumes that the tensors 

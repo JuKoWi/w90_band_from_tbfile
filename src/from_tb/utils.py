@@ -174,7 +174,7 @@ def plot_bands(segments, labels, bandstructures:list, pltname):
     for j, bands in enumerate(bandstructures):
         for i, (kPoints, relPos) in enumerate(segments):
             ax.plot(relPos, bands[i], 
-                    # '.',
+                    '.',
                       color=colors[names[j]],ms=1)
     fig.tight_layout()
     l, pos = zip(*labels)

@@ -1,14 +1,14 @@
 from src.from_tb.extract_properties_tbfile import get_dipole_orth, k_grid, get_rec_lattice, get_momentum_orth, to_bloch_basis, get_dipole_atomic
 import numpy as np
 import matplotlib.pyplot as plt
-import src.from_tb.w90 as w90
+import from_tb.parse_and_FT as parse_and_FT
 
 plt.rcParams.update({'font.size': 45})
 plt.rcParams['savefig.bbox'] = 'tight'
 
 def plot_overlap_bz(grid_shape, idxa, idxb, filename, fromFile):
     """plot the dipole operator elements in orthogonal basis in the brillouin zone"""
-    lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename)
+    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(filename)
     rec_lat = get_rec_lattice(lattice=lattice)
     print(rec_lat[:,0])
     print(rec_lat[:,1])
@@ -30,7 +30,7 @@ def plot_overlap_bz(grid_shape, idxa, idxb, filename, fromFile):
         # pk, Sk_orth, Hk_orth = get_momentum(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kfrac, cells=cells,lattice=lattice)
         # pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth)
 
-        matrix = w90.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kfrac)
+        matrix = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kfrac)
         np.save(file=filename, arr=matrix)
 
     k, m, n = np.shape(matrix)
@@ -61,7 +61,7 @@ def plot_overlap_bz(grid_shape, idxa, idxb, filename, fromFile):
 
 def plot_dipole_bz(grid_shape, idxa, idxb, filename, fromFile):
     """plot the dipole operator elements in orthogonal basis in the brillouin zone"""
-    lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename)
+    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(filename)
     rec_lat = get_rec_lattice(lattice=lattice)
     print(rec_lat[:,0])
     print(rec_lat[:,1])

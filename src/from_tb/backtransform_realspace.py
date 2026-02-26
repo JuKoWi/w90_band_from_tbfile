@@ -1,4 +1,4 @@
-from from_tb.w90 import read_tb 
+from from_tb.parse_and_FT import read_tb 
 from from_tb.extract_properties_tbfile import *
 from from_tb.utils import k_grid, bohr_to_angstrom, au_to_eV
 from collections import Counter
@@ -8,7 +8,7 @@ import sys
 
 def test_realspace_momentum(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
-    lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(tb_file)
+    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file)
     pk, Sk_orth, Hk_orth = get_momentum_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     pk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=pk, Hk_orth=Hk_orth, Sk_orth=Sk_orth) # (k, a, a, c)
     Nk, Nband, _, Ncoord = np.shape(pk_bloch)
@@ -20,7 +20,7 @@ def test_realspace_momentum(tb_file, shape_tuple):
 
 def test_realspace_dipole(tb_file, shape_tuple):
     kPoints = k_grid(n_points=shape_tuple)
-    lattice, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(tb_file)
+    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file)
     dk_orth, Sk_orth, Hk_orth = get_dipole_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     dk_bloch, Hk_bloch, Sk_bloch = to_bloch_basis(pk=dk_orth, Hk_orth=Hk_orth, Sk_orth=Sk_orth) # (k, a, a, c)
     Nk, Nband, _, Ncoord = np.shape(dk_bloch)
@@ -158,7 +158,7 @@ def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filena
 def orthogonal_wannierfile(filename_in, shape_tuple):
     start = time.time()
     kPoints = k_grid(n_points=shape_tuple)
-    lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
+    lattice_au, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(filename_in)
     dk_orth, Sk_orth, Hk_orth = get_dipole_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
     posr = transform_dipole(dk=dk_orth, shape_tuple=shape_tuple)
@@ -175,7 +175,7 @@ def orthogonal_wannierfile(filename_in, shape_tuple):
 def nonorthogonal_wannierfile(filename_in, shape_tuple):
     start = time.time()
     kPoints = k_grid(n_points=shape_tuple)
-    lattice_au, cells, degeneracies, Hr, Sr, Rr = w90.read_tb(filename_in)
+    lattice_au, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(filename_in)
     dk_orth, Sk_orth, Hk_orth = get_dipole_orth(Hr=Hr, Sr=Sr, Rr=Rr,kPoints=kPoints, cells=cells, lattice=lattice_au, degeneracies=degeneracies) # (k,a,a), (k,a,a), (k,a,a,c)
     # dk_orth = make_momentum_hermitian(dk_orth)
     Hr = transform_hamiltonian(Hk=Hk_orth, shape_tuple=shape_tuple)
@@ -195,8 +195,8 @@ def nonorthogonal_wannierfile(filename_in, shape_tuple):
 def compare_intermediate_steps(filename_A, filename_B, shape_tuple):
     """seems to only give the same results with 20x20 grid and above"""
     kPoints = k_grid(n_points=shape_tuple)
-    latticeA, cellsA, degeneraciesA, HrA, SrA, RrA = w90.read_tb(filename_A)
-    latticeB, cellsB, degeneraciesB, HrB, SrB, RrB = w90.read_tb(filename_B)
+    latticeA, cellsA, degeneraciesA, HrA, SrA, RrA = parse_and_FT.read_tb(filename_A)
+    latticeB, cellsB, degeneraciesB, HrB, SrB, RrB = parse_and_FT.read_tb(filename_B)
     dk_orthA, Sk_orthA, Hk_orthA = get_dipole_orth(Hr=HrA, Sr=SrA, Rr=RrA, kPoints=kPoints, cells=cellsA, lattice=latticeA, degeneracies=degeneraciesA)
     dk_orthB, Sk_orthB, Hk_orthB = get_dipole_orth(Hr=HrB, Sr=SrB, Rr=RrB, kPoints=kPoints, cells=cellsB, lattice=latticeB, degeneracies=degeneraciesB)
     print(np.allclose(Sk_orthA, Sk_orthB))
