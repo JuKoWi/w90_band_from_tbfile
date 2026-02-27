@@ -2,6 +2,9 @@ import scipy as sc
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+plt.rcParams.update({'font.size': 16})
+plt.rcParams['savefig.bbox'] = 'tight'
+
 
 def angstrom_to_bohr(angstrom):
     meter = angstrom * sc.constants.angstrom
@@ -45,7 +48,7 @@ def plotLines(ax, pos, labels):
         ax.axvline(x=p, color='k')
     ax.set_xticks(pos, labels)
     ax.set_xlim([pos[0], pos[-1]])
-    ax.set_ylabel("E / eV", labelpad=-5)
+    ax.set_ylabel(r"$E$ [eV]", labelpad=-5)
 
 def parsePath(path, lattice, labelToK, pointsPerSegment=100):
     """use this after w90.py"""
@@ -166,16 +169,18 @@ def check_vector_hermitian(pk, atol):
             is_hermitian = False
     return is_hermitian
 
-def plot_bands(segments, labels, bandstructures:list, pltname):
-    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+def plot_bands(segments, labels, legend, bandstructures:list, pltname):
+    fig, ax = plt.subplots(1, 1, figsize=(6,4.5))
     scale = 800
     colors = mcolors.TABLEAU_COLORS
     names = list(colors)
     for j, bands in enumerate(bandstructures):
-        for i, (kPoints, relPos) in enumerate(segments):
+        ax.plot([], [], color=colors[names[j]], label=legend[j])
+        for i, (kPoints, relPos) in enumerate(segments[j]):
             ax.plot(relPos, bands[i], 
-                    '.',
+                    # '.',
                       color=colors[names[j]],ms=1)
+    ax.set_ylim(bottom=-12, top=-1.5)
     fig.tight_layout()
     l, pos = zip(*labels)
     point_symbols = []
@@ -185,5 +190,6 @@ def plot_bands(segments, labels, bandstructures:list, pltname):
             #   labels=point_symbols,
             labels=[r"$\Gamma$", point_symbols[1], point_symbols[2], r"$\Gamma$"]
               )
+    ax.legend(loc='best')
     plt.savefig(f'{pltname}.pdf')
     plt.show()

@@ -8,7 +8,7 @@ plt.rcParams.update({'font.size': 16})
 plt.rcParams['savefig.bbox'] = 'tight'
 
 
-lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb("seedname_tb.dat") 
+lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb("seedname_tb_transpose.dat") 
 kFrac = k_grid(n_points=(10,10,1))
 # kFrac = k_grid_bz(lattice=lattice, shape=(40,40,1))
 # gradH_analytic = w90.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac, lattice=lattice)

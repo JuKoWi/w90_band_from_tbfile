@@ -1,0 +1,36 @@
+&control
+  calculation='bands',
+  restart_mode='from_scratch',
+  prefix='mos2',
+  pseudo_dir = '/beegfs/lu76tel/QE/pseudos',
+/
+&system
+  ibrav= 4,
+  celldm(1) =      6.01926345
+  celldm(3) =      5.33639925
+  nat= 3, ntyp= 2,
+  ecutwfc=90.0, ecutrho=600.0,
+  assume_isolated='2D',
+  nbnd = 17
+/
+&electrons
+  conv_thr =  1.0d-15,
+  mixing_beta = 0.5
+/
+
+ATOMIC_SPECIES
+  Mo 95.94   Mo_ONCVPSP_PBE.upf
+  S  32.065  S_ONCVPSP_PBE.upf
+
+ATOMIC_POSITIONS crystal
+Mo            0.0000000000        0.0000000000        0.5000000000
+S             0.6666666666        0.3333333333        0.5919497721
+S             0.6666666666        0.3333333333        0.4080502278
+
+K_POINTS crystal_b
+4
+  0.0000000000  0.0000000000    0.0 21
+  0.5000000000  0.0000000000    0.0 21
+  0.3333333333  0.3333333333    0.0 21
+  0.0000000000  0.0000000000    0.0 1
+

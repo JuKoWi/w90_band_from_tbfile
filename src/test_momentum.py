@@ -1,5 +1,5 @@
 from from_tb.parse_and_FT import read_tb_momentum, read_tb
-from from_tb.utils import k_grid
+from from_tb.utils import k_grid, bohr_to_angstrom
 from from_tb.extract_properties_tbfile import get_momentum_bloch_file, get_momentum_bloch_lee
 import numpy as np
 

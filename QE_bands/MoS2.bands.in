@@ -1,0 +1,4 @@
+&BANDS
+   prefix = 'mos2'
+   lsym   = .false.
+ /
