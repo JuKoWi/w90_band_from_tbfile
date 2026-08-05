@@ -18,6 +18,9 @@
 		    pyyaml
 		    scipy
 		    sympy
+		    ipython
+		    jupyter
+		    ipykernel
              ]);
 
         in {
