@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from tb_calculations.extract_observables import gradient_H_atomic, get_momentum_bloch, to_bloch_basis, get_momentum_orth, get_momentum_bloch_lee, abs_spec_inter_intra_separate, absorption_spec_lee, absorption_spec_momentum
+from tb_calculations.extract_observables import gradient_H_atomic, get_momentum_bloch, to_bloch_basis, get_momentum_orth, velocity_bloch_lee, abs_spec_inter_intra_separate, optical_cond_from_v, absorption_spec_momentum
 from tb_calculations.utils import k_grid, k_grid_bz
 from tb_calculations.extract_observables import gradient_H_atomic
 import tb_calculations.parse_and_FT as parse_and_FT
@@ -33,7 +33,7 @@ file1 = seedname_dir + 'seedname_tb.dat'
 def compare_momentum_velocity(file_velocity, file_momentum, valence_num, ktuple):
     kFrac = k_grid(n_points=ktuple)
     lattice1, cells1, degeneracies1, Hr1, Sr1, Rr1 = parse_and_FT.read_tb(file_velocity) 
-    omega1, sigma1 = absorption_spec_lee(Sr=Sr1, Hr=Hr1, Rr=Rr1, kFrac=kFrac, lattice=lattice1, cells=cells1, degeneracies=degeneracies1, valence_num=valence_num, eta_eV=0.1, range_omega=(0,10))
+    omega1, sigma1 = optical_cond_from_v(Sr=Sr1, Hr=Hr1, Rr=Rr1, kFrac=kFrac, lattice_au=lattice1, cells=cells1, degeneracies=degeneracies1, valence_num=valence_num, eta_eV=0.1, range_omega=(0,10))
 
     lattice2, cells2, degeneracies2, Hr2, Sr2, pr2 = parse_and_FT.read_tb_momentum(file_momentum) 
     omega2, sigma2 = absorption_spec_momentum(Sr=Sr2, Hr=Hr2, pr=pr2, kFrac=kFrac, lattice=lattice2, cells=cells2, degeneracies=degeneracies2, valence_num=valence_num, eta_eV=0.1)
@@ -52,9 +52,9 @@ def compare_momentum_velocity(file_velocity, file_momentum, valence_num, ktuple)
 def compare_velocity(file1, file2, valence_num, ktuple):
     kFrac = k_grid(n_points=ktuple)
     lattice1, cells1, degeneracies1, Hr1, Sr1, Rr1 = parse_and_FT.read_tb(file1) 
-    omega1, sigma1 = absorption_spec_lee(Sr=Sr1, Hr=Hr1, Rr=Rr1, 
+    omega1, sigma1 = optical_cond_from_v(Sr=Sr1, Hr=Hr1, Rr=Rr1, 
                                          kFrac=kFrac, 
-                                         lattice=lattice1, 
+                                         lattice_au=lattice1, 
                                          cells=cells1, 
                                          degeneracies=degeneracies1, 
                                          valence_num=valence_num, 
@@ -64,9 +64,9 @@ def compare_velocity(file1, file2, valence_num, ktuple):
                                          )
 
     lattice2, cells2, degeneracies2, Hr2, Sr2, Rr2 = parse_and_FT.read_tb(file2, orthogonal=True) 
-    omega2, sigma2 = absorption_spec_lee(Sr=Sr2, Hr=Hr2, Rr=Rr2, 
+    omega2, sigma2 = optical_cond_from_v(Sr=Sr2, Hr=Hr2, Rr=Rr2, 
                                          kFrac=kFrac, 
-                                         lattice=lattice2,
+                                         lattice_au=lattice2,
                                          cells=cells2, 
                                          degeneracies=degeneracies2, 
                                          valence_num=valence_num, 
@@ -98,7 +98,7 @@ def plot_single(velocity:bool, file, valence_num, ktuple):
     kFrac = k_grid(n_points=ktuple)
     if velocity:
         lattice1, cells1, degeneracies1, Hr1, Sr1, Rr1 = parse_and_FT.read_tb(file) 
-        omega1, sigma1 = absorption_spec_lee(Sr=Sr1, Hr=Hr1, Rr=Rr1, kFrac=kFrac, lattice=lattice1, cells=cells1, degeneracies=degeneracies1, valence_num=valence_num, eta_eV=0.1, range_omega=(0,10), T_K=0)
+        omega1, sigma1 = optical_cond_from_v(Sr=Sr1, Hr=Hr1, Rr=Rr1, kFrac=kFrac, lattice_au=lattice1, cells=cells1, degeneracies=degeneracies1, valence_num=valence_num, eta_eV=0.1, range_omega=(0,10), T_K=0)
     else:
         lattice1, cells1, degeneracies1, Hr1, Sr1, pr1 = parse_and_FT.read_tb_momentum(file) 
         omega1, sigma1 = absorption_spec_momentum(Sr=Sr1, Hr=Hr1, pr=pr1, kFrac=kFrac, lattice=lattice1, cells=cells1, degeneracies=degeneracies1, valence_num=valence_num, eta_eV=0.1)

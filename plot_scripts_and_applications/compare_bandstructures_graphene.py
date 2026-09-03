@@ -1,6 +1,6 @@
 """Generate plots comparing band structures of graphene from DFTB and the self-generated tight binding files"""
 
-from src.tb_calculations.utils import plot_bands, MoS2_labelToK, parse_dftb_band
+from src.tb_calculations.utils import plot_bands, MOS2_LABEL_TO_K, parse_dftb_band
 from tb_calculations.extract_observables import bandstructure_orth_basis
 import tb_calculations.parse_and_FT as parse_and_FT
 

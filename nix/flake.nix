@@ -21,6 +21,7 @@
 		    ipython
 		    jupyter
 		    ipykernel
+		    snakeviz
              ]);
 
         in {
@@ -28,6 +29,7 @@
                 pkgs.mkShell {
                     buildInputs = [
                            myPython
+			   pkgs.ruff
                            # pkgs.gtest
                     ];
 shellHook = ''

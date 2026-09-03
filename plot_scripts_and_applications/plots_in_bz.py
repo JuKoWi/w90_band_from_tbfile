@@ -1,6 +1,6 @@
 """Create colormap plots of different k-dependent quantities in the first Brillouin zone"""
 
-from tb_calculations.extract_observables import get_dipole_orth, get_rec_lattice, get_momentum_orth, to_bloch_basis, get_dipole_atomic, get_momentum_bloch_realspace, get_momentum_bloch_lee, get_momentum_bloch, get_momentum_atomic, get_velocity_atomic
+from tb_calculations.extract_observables import get_dipole_orth, get_rec_lattice, get_momentum_orth, to_bloch_basis, get_dipole_atomic, get_momentum_bloch_realspace, velocity_bloch_lee, get_momentum_bloch, get_momentum_atomic, get_velocity_atomic
 from tb_calculations.utils import k_grid
 import numpy as np
 import matplotlib.pyplot as plt
@@ -160,7 +160,7 @@ def compare_momenta_bz(grid_shape, idxa, idxb, filename_r, fromFile, component, 
         vec_matrix_r = np.load(file=filename_r)
         # vec_matrix_p = np.load(file=filename_p)
     else:
-        vec_matrix_r = get_momentum_bloch_lee(Hr=Hr1, Sr=Sr1, Rr=Rr1, degeneracies=degeneracies1, kPoints=kFrac, cells=cells1, lattice=lattice1)
+        vec_matrix_r = velocity_bloch_lee(Hr=Hr1, Sr=Sr1, Rr=Rr1, degeneracies=degeneracies1, kPoints=kFrac, cells=cells1, lattice_au=lattice1)
         # vec_matrix_r = get_velocity_atomic(Hr=Hr1, Sr=Sr1, Rr=Rr1, degeneracies=degeneracies1, kFrac=kFrac, cells=cells1, lattice=lattice1)
         # vec_matrix_p = get_momentum_bloch_realspace(lattice=lattice2, cells=cells2, degeneracies=degeneracies2, Hr=Hr2, Sr=Sr2, pr=pr2, kPoints=kFrac)
         # vec_matrix_p = get_momentum_atomic(lattice=lattice2, cells=cells2, degeneracies=degeneracies2, Hr=Hr2, Sr=Sr2, pr=pr2, kFrac=kFrac)

@@ -1,6 +1,6 @@
 """Generate plots comparing band structures of MOS2 from DFTB and the self-generated tight binding files"""
 
-from tb_calculations.extract_observables import MoS2_labelToK, bandstructure_orth_basis
+from tb_calculations.extract_observables import MOS2_LABEL_TO_K, bandstructure_orth_basis
 from src.tb_calculations.utils import plot_bands
 import tb_calculations.parse_and_FT as parse_and_FT
 from ase.spectrum.band_structure import BandStructure

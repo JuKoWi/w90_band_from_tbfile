@@ -8,6 +8,18 @@ import matplotlib.colors as mcolors
 plt.rcParams.update({'font.size': 16})
 plt.rcParams['savefig.bbox'] = 'tight'
 
+MOS2_LABEL_TO_K = { 'G' : np.array([0, 0, 0]),
+             'M' : np.array([0.5, 0, 0]),
+             'K' : np.array([1/3, 1/3, 0]),
+            }
+
+FCC_LABEL_TO_K = {'G': np.array([0,0,0]),
+                      'X': np.array([0, 0.5, 0.5]),
+                      'L': np.array([0.5, 0.5, 0.5]),
+                      'W': np.array([0.25, 0.75, 0.5]),
+                      'K': np.array([0.375, 0.75, 0.375]),
+                      'U': np.array([0.625, 0.75, 0.625]),
+                      }
 
 def angstrom_to_bohr(angstrom):
     meter = angstrom * sc.constants.angstrom
@@ -25,12 +37,13 @@ def eV_to_au(eV):
 def au_to_eV(au):
     return au * sc.constants.physical_constants['Hartree energy in eV'][0]
 
-MoS2_labelToK = { 'G' : np.array([0, 0, 0]),
-             'M' : np.array([0.5, 0, 0]),
-             'K' : np.array([1/3, 1/3, 0]),
-            }
+def cond_au_to_SI(au):
+    e = sc.constants.e
+    h_bar = sc.constants.hbar
+    a_0 = sc.constants.physical_constants['atomic unit of length'][0]
+    return au * e**2/(h_bar * a_0)
 
-def parse_dftb_band(filepath, n_bands):
+def parse_dftb_band(filepath, n_bands, points_per_segment):
     with open(file=filepath, mode='r') as f:
         bandstructure = []
         while True:
@@ -44,7 +57,14 @@ def parse_dftb_band(filepath, n_bands):
                     number = float(line.split()[1])
                     k_point_levels.append(number)
                 bandstructure.append(k_point_levels)
-    return np.array(bandstructure)
+    if (len(bandstructure) != sum(points_per_segment)):
+        raise ValueError(f"Total k-points do not match .out file. File contains {len(bandstructure)} k-points instead of {sum(points_per_segment)}")
+    bandstructure_segments = []
+    last_idx = 0
+    for i, points in enumerate(points_per_segment):
+        bandstructure_segments.append(np.array(bandstructure[last_idx:last_idx+points]))
+        last_idx += points
+    return bandstructure_segments
 
 def plotLines(ax, pos, labels):
     for p in pos:
@@ -53,7 +73,31 @@ def plotLines(ax, pos, labels):
     ax.set_xlim([pos[0], pos[-1]])
     ax.set_ylabel(r"$E$ [eV]", labelpad=-5)
 
-def parsePath(path, lattice, labelToK, pointsPerSegment=100):
+def plot_bands(segments:list, labels, legend:list, bandstructures:list, pltname="bandstructure"):
+    fig, ax = plt.subplots(1, 1, figsize=(6,4.5))
+    colors = mcolors.TABLEAU_COLORS
+    names = list(colors)
+    for j, bands in enumerate(bandstructures):
+        ax.plot([], [], color=colors[names[j]], label=legend[j])
+        for i, (kPoints, relPos) in enumerate(segments[j]):
+            ax.plot(relPos, bands[i], 
+                    # '.',
+                      color=colors[names[j]],ms=1)
+    # ax.set_ylim(bottom=-20, top=-1.5)
+    fig.tight_layout()
+    l, pos = zip(*labels)
+    point_symbols = []
+    for i in labels:
+        point_symbols.append(i[0])
+    plotLines(ax=ax, pos=pos, 
+              labels=point_symbols,
+            # labels=[r"$\Gamma$", point_symbols[1], point_symbols[2], r"$\Gamma$"]
+              )
+    # ax.legend(loc='best')
+    plt.savefig(f'{pltname}.pdf')
+    plt.show()
+
+def parsePath(path, lattice, label_to_k, pointsPerSegment=100):
     """use this after w90.py"""
     recipLattice = 2*np.pi * np.linalg.inv(lattice).T
     segments = []
@@ -64,8 +108,8 @@ def parsePath(path, lattice, labelToK, pointsPerSegment=100):
             continue
         if labels[-1][0] != s:
             labels[-1][0] += "|" + s
-        start = labelToK[s]
-        end = labelToK[e]
+        start = label_to_k[s]
+        end = label_to_k[e]
         h = np.linspace(0, 1, pointsPerSegment)
         relPos = lastRelPos + h * np.linalg.norm(recipLattice.T @ (end-start))
         kPoints = start + h[:, None] * (end-start)
@@ -98,6 +142,7 @@ def k_grid(n_points):
     return kpoints
 
 def k_grid_bz(lattice, shape:tuple, Gmax=1):
+    """MP grid folded to 1. BZ (not necessarily regular)"""
     rec_lat = get_rec_lattice(lattice=lattice).T
     n1, n2, n3 = shape[0], shape[1], shape[2]
     grids = [
@@ -172,27 +217,5 @@ def check_vector_hermitian(pk, atol):
             is_hermitian = False
     return is_hermitian
 
-def plot_bands(segments, labels, legend, bandstructures:list, pltname):
-    fig, ax = plt.subplots(1, 1, figsize=(6,4.5))
-    scale = 800
-    colors = mcolors.TABLEAU_COLORS
-    names = list(colors)
-    for j, bands in enumerate(bandstructures):
-        ax.plot([], [], color=colors[names[j]], label=legend[j])
-        for i, (kPoints, relPos) in enumerate(segments[j]):
-            ax.plot(relPos, bands[i], 
-                    # '.',
-                      color=colors[names[j]],ms=1)
-    ax.set_ylim(bottom=-20, top=-1.5)
-    fig.tight_layout()
-    l, pos = zip(*labels)
-    point_symbols = []
-    for i in labels:
-        point_symbols.append(i[0])
-    plotLines(ax=ax, pos=pos, 
-            #   labels=point_symbols,
-            labels=[r"$\Gamma$", point_symbols[1], point_symbols[2], r"$\Gamma$"]
-              )
-    # ax.legend(loc='best')
-    plt.savefig(f'{pltname}.pdf')
-    plt.show()
+if __name__ == "__main__":
+    print(cond_au_to_SI(1))

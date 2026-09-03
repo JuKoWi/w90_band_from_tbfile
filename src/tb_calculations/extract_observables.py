@@ -4,18 +4,19 @@ and calculation of absorption spectrum
 """
 
 import tb_calculations.parse_and_FT as parse_and_FT
+from tb_calculations import utils
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sc
 import time
-from tb_calculations.utils import parsePath, MoS2_labelToK, get_rec_lattice, fermi_dirac, fermi_dirac_dE, check_vector_hermitian
+from tb_calculations.utils import parsePath, MOS2_LABEL_TO_K, get_rec_lattice, fermi_dirac, fermi_dirac_dE, check_vector_hermitian
 plt.rcParams.update({'font.size': 30})
 plt.rcParams['savefig.bbox'] = 'tight'
 
-def bandstructure_orth_basis(lattice, cells, degeneracies, Hr, Sr, Rr):
+def bandstructure_orth_basis(lattice, cells, degeneracies, Hr, Sr, Rr, path):
     """gives all relevant quantities in an orthogonal basis to check for band structure"""
-    segments, labels = parsePath("GMKG", lattice=lattice, labelToK=MoS2_labelToK)
+    segments, labels = parsePath("GMKG", lattice=lattice, label_to_k=MOS2_LABEL_TO_K)
     bands_orth = []
     d_orth = []
     H_orth = []
@@ -28,6 +29,16 @@ def bandstructure_orth_basis(lattice, cells, degeneracies, Hr, Sr, Rr):
         S_orth.append(Sk_orth)
         d_orth.append(dk_orth)
     return segments, labels, bands_orth, H_orth, S_orth, d_orth 
+
+def bandstructure_from_k(tb_file, ksegments):
+    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file)
+    bands = []
+    H_orth = []
+    for i, k_frac in enumerate(ksegments):
+        _, Hk_orth, _, _ = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=k_frac, degeneracies=degeneracies)
+        vals, vecs = sc.linalg.eigh(Hk_orth)
+        bands.append(np.real(vals))
+    return bands
 
 
 def orthogonalize(lattice, cells, degeneracies, Hr, Sr, Rr, kPoints):
@@ -257,19 +268,19 @@ def get_momentum_bloch(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
         print(f"Momentum after Paredes-formula is not hermitian")
     return term1 + term2 + term3
 
-def get_momentum_bloch_lee(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
+def velocity_bloch_lee(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice_au):
     """Calculate momentum directly in Bloch basis according to formula 7 from 10.1103/PhysRevB.98.115115"""
     Sk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
     Rk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
     Hk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
-    gradH_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
-    gradS_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
+    gradH_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice_au)
+    gradS_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice_au)
     eigvals, U = sc.linalg.eigh(Hk, Sk)
     U_dagger = np.transpose(U, axes=(0,2,1)).conj()
-    term1 = np.einsum('kab, kbcz, kcd -> kadz', U_dagger, gradH_atomic, U)
-    term2 = -np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, gradS_atomic, U, eigvals)
-    term3 = 1j * np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, Rk, U, eigvals)
-    term4 = -1j * np.einsum('kab, kbcz, kcd, kd -> kadz', U_dagger, Rk, U, eigvals)
+    term1 = np.einsum('kab, kbcz, kcd -> kadz', U_dagger, gradH_atomic, U, optimize=True)
+    term2 = -np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, gradS_atomic, U, eigvals, optimize=True)
+    term3 = 1j * np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, Rk, U, eigvals, optimize=True)
+    term4 = -1j * np.einsum('kab, kbcz, kcd, kd -> kadz', U_dagger, Rk, U, eigvals, optimize=True)
     if not check_vector_hermitian(pk= term1 + term2 + term3 + term4, atol=1e-7):
         print(f"Momentum after Lee-formula is not hermitian")
     return term1 + term2 + term3 + term4
@@ -333,77 +344,21 @@ def to_bloch_basis(pk, Hk_orth, Sk_orth):
 def make_momentum_hermitian(pk):
     return 0.5 * (pk + np.transpose(pk, axes=(0,2,1,3)).conj())
 
-def abs_spec_inter_intra_separate(Sr, Hr, Rr, kPoints, lattice, cells, degeneracies, range_omega, valence_idx, gamma_eV, eta_eV, T_K=0):
-    """
-        returns sigma tensor in cartesian coordinates 
-        inter and intraband term calcualted separately
-    valence_idx in python style indexing"""
-    start = time.time()
-    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
-    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
-    eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
-    pk = get_momentum_bloch(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kPoints, cells=cells, lattice=lattice)
-    hermitian_tolerance = np.max(np.abs(pk - np.transpose(pk, axes=(0,2,1,3)).conj()))
-    print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
-    # pk = make_momentum_hermitian(pk=pk_bloch)
-    pk = pk[:,:,:,:2]
+def optical_cond_from_v(Sr, Hr, Rr, kFrac, lattice_au, cells, degeneracies, valence_num, eta_eV, range_omega=(1,10), T_K=0):
+    """ 
+        until now only one smearing parameter
 
-    Nk = kPoints.shape[0]
-    Nk, Nb = pk.shape[0], pk.shape[1]
-    rec_lat = get_rec_lattice(lattice=lattice)
-    omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
-    omega = omega[omega > 1e-2]
-    Nomega = omega.size
-    gamma = parse_and_FT.eV_to_au(gamma_eV)
-    eta = parse_and_FT.eV_to_au(eta_eV)
-    omega2 = omega**2 
-
-    bands = eigvals
-    bandgap_ind = np.argmin(np.abs(bands[:,valence_idx+1]- bands[:, valence_idx]))
-    Ef = (bands[bandgap_ind, valence_idx] + bands[bandgap_ind, valence_idx+1]) /2
-    print(f"E_f set to {parse_and_FT.au_to_eV(Ef)}")
-
-    sigma_tens = np.zeros((Nomega, 2, 2), dtype=complex)
-    for i in range(valence_idx+1):
-        f = 2 * fermi_dirac(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
-        for j in range(valence_idx+1, Nb):
-            dE = bands[:, j] - bands[:, i]      # (Nk,)
-            # dE_inv = np.zeros_like(dE)
-            # dE_inv[dE > 1e-4] = 1/dE[dE > 1e-4]
-            p = pk[:, j, i, :]             # (Nk, 3)
-            # print(p)
-            M_ab = np.einsum('ka,kb->abk', p, p.conj())
-            denom = ((dE[None, :]**2 - omega2[:, None])**2 + gamma**2 * omega2[:, None])
-            lorentz = f * gamma * omega2[:, None] / denom   # (Nomega, Nk)
-            sigma_tens += np.einsum('abk,ok->oab', M_ab/dE, lorentz)
-    # for i in range(Nb):
-    #     dfdE = 2 * fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,i], mu_au=Ef)
-    #     k = np.einsum('ab,kb-> ka', rec_lat, kPoints)
-    #     p = pk[:,i,i,:] - k[:,:2] # leave out factor Sk_ii because it is 1 anyway
-    #     M_ab = np.einsum('ka, kb->abk', p, p.conj())
-    #     lorentz = eta / ( omega2[:,None] + eta**2)
-    #     sigma_tens += 0.5 * np.einsum('abk, ok -> oab', M_ab, lorentz*dfdE) 
-    print(f"maximal im of sigma = {np.max(np.imag(sigma_tens))}")
-    sigma_tens = np.real(sigma_tens)
-    sigma_tens /= np.max(np.abs(sigma_tens))
-    diagonal_mask = np.eye(sigma_tens.shape[1])
-    max_offdiag = np.max(np.abs(sigma_tens - diagonal_mask * sigma_tens))
-    print(f"maximal offdiagonal value of sigma: {max_offdiag}")
-    end = time.time()
-    print(f"Calculation took {end - start} s")
-    np.save(file='sigma_tens', arr=sigma_tens)
-    return parse_and_FT.au_to_eV(omega), sigma_tens
-
-def absorption_spec_lee(Sr, Hr, Rr, kFrac, lattice, cells, degeneracies, valence_num, eta_eV, normalized=True, range_omega=(1,10), T_K=0):
-    """valence_num: number of valence bands"""
+        valence_num: number of valence bands
+        eta_eV: smearing parameter
+        range_omega: tuple with (start, end) of omega range in eV
+        Sr, Hr, Rr: matrix repesentation of S, H and position operator in real space. First index is the lattice vector. Has to match cells
+        kFrac: k-points in fractional coordinates which are used to sample the BZ
+        degeneracies: degeneracies of the cells/lattice points
+        """
     Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
     Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
     eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
-    pk_bloch = get_momentum_bloch_lee(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice=lattice)
-    # pk_bloch = get_momentum_bloch(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice=lattice)
-    print(f"Max x-component {np.max(np.abs(pk_bloch[:,:,:,0]))}")
-    print(f"Max y-component {np.max(np.abs(pk_bloch[:,:,:,1]))}")
-    print(f"Max z-component {np.max(np.abs(pk_bloch[:,:,:,2]))}")
+    pk_bloch = velocity_bloch_lee(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice_au=lattice_au)
     
     hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
     print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
@@ -418,26 +373,71 @@ def absorption_spec_lee(Sr, Hr, Rr, kFrac, lattice, cells, degeneracies, valence
     print(f"Fermi level at {parse_and_FT.au_to_eV(Ef)}")
     eta = parse_and_FT.eV_to_au(eta_eV)
 
+    path = None
     sigma = np.zeros(shape=(nomega, 3, 3), dtype=complex)
     for m in range(Nbands):
         fk_m = fermi_dirac(T_K=T_K, E_state_au=bands[:,m], mu_au=Ef)
         for n in range(Nbands):
             fk_n = fermi_dirac(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef)
             dE = bands[:,m] - bands[:,n]
-            safe_dE = np.where(np.abs(dE) > 1e-4, dE, 1.0)
-            ratio = 2 * (fk_m - fk_n) / safe_dE
-            fermi_fac = np.where(np.abs(dE) > 1e-4,
+            safe_dE = np.where(np.abs(dE) > 1e-8, dE, 1.0)
+            ratio = (fk_m - fk_n) / safe_dE
+            fermi_fac = np.where(np.abs(dE) > 1e-8,
                                  ratio,
-                                 2*fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef))
+                                 fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef))
             pk1 = pk_bloch[:,m,n,:]
             pk2 = pk_bloch[:,n,m,:]
             pk_prod = np.einsum('ka, kb -> kab', pk1, pk2)
-            dE = bands[:,m] - bands[:,n]
-            denominator = 1 /(omega[:,None] + dE[None,:] + 1j*eta)
-            sigma += -1j * np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator)
-    sigma = np.real(sigma)
-    if normalized:
-        sigma /= np.max(np.abs(sigma[:,:2,:2]))
+            denominator = 1 /(dE[None,:] - omega[:,None] + 1j*0.5*eta)
+            if path is None:
+                path = np.einsum_path('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize='optimal')[0]
+            sigma += np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize=path)
+    cell_volume = np.linalg.det(a=lattice_au)
+    volume = cell_volume * Nk
+    prefac = -1j * 2/(Nk * volume) # 2 for spin degeneracy, Nk for kpoint-weights
+    sigma = prefac * sigma
+    print(f"convergence criterion: max(Im(sigma))/max(Re(sigma)) = {np.max(np.imag(sigma[:,0,0]))/np.max(np.real(sigma[:,0,0]))}")
+    return parse_and_FT.au_to_eV(omega), sigma
+
+
+def optical_cond_slow(Sr, Hr, Rr, kFrac, lattice_au, cells, degeneracies, valence_num, eta_eV, normalized=True, range_omega=(1,10), T_K=0):
+    """Slower algorithm but implemented so the inter and intraband smearing can be adjusted individually"""
+    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
+    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
+    eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
+    vk_bloch = velocity_bloch_lee(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice_au=lattice_au)
+
+    bands = eigvals
+    Nk, Nbands = np.shape(eigvals)
+    omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
+    nomega = np.shape(omega)[0]
+    bandgap_ind = np.argmin(np.abs(bands[:,valence_num]- bands[:, valence_num-1]))
+    Ef = (bands[bandgap_ind, valence_num-1] + bands[bandgap_ind, valence_num]) /2
+    print(f"Fermi level at {parse_and_FT.au_to_eV(Ef)}")
+    eta = parse_and_FT.eV_to_au(eta_eV)
+
+    de = bands[...,None] - bands[:,None,:] #(k, m, n)
+    small = np.abs(de) < 1e-8
+    safe = np.where(small, 1.0, de)
+    fermi_difference = np.where(np.abs(de) > 1e-8, 
+                                (fermi_dirac(T_K, bands[...,None], Ef)-fermi_dirac(T_K, bands[:,None,:], Ef))/safe, 
+                                fermi_dirac_dE(T_K, bands[...,None], Ef))
+    intra_smear = eta
+    inter_smear = eta
+    smear = np.where(np.abs(de) > 0, inter_smear, intra_smear)
+    dyad = np.einsum('kmna, knmb -> kmnab', vk_bloch, vk_bloch) #(k,m,n,a,b)
+    sigma = np.zeros(shape=(nomega, 3, 3), dtype=complex)
+    path = None
+    for i,o in enumerate(omega):
+        denominator = 1/(de - o + 1j*0.5*smear)
+        if path is None:
+            path = np.einsum_path('kmn, kmn, kmnab -> ab', denominator, fermi_difference, dyad, optimize='optimal')[0]
+        sigma[i,...] = np.einsum('kmn, kmn, kmnab -> ab', denominator, fermi_difference, dyad, optimize=path)
+    cell_volume = np.linalg.det(a=lattice_au)
+    volume = cell_volume * Nk
+    prefac = -1j * 2/(Nk * volume) # 2 for spin degeneracy, Nk for kpoint-weights
+    sigma = prefac * sigma
+    print(f"convergence criterion: max(Im(sigma))/max(Re(sigma)) = {np.max(np.imag(sigma[:,0,0]))/np.max(np.real(sigma[:,0,0]))}")
     return parse_and_FT.au_to_eV(omega), sigma
 
 def absorption_spec_momentum(Sr, Hr, pr, kFrac, lattice, cells, degeneracies, valence_num, eta_eV, range_omega=(1,10), T_K=0):
@@ -484,7 +484,11 @@ def absorption_spec_momentum(Sr, Hr, pr, kFrac, lattice, cells, degeneracies, va
             sigma += -1j * np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator)
     sigma = np.real(sigma)
     sigma /= np.max(np.abs(sigma[:,:2,:2]))
-    return parse_and_FT.au_to_eV(omega), sigma
+    return omega, sigma
+
+def sum_rule(sigma_au, omega_au):
+    pass
+
 
 def spectrum_in_direction(sigma_tens, vec):
     """calculate the spectrum in a certain direction. Assumes that the tensors 

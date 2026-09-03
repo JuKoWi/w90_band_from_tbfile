@@ -1,9 +1,8 @@
-from src.from_tb.extract_properties_tbfile import MoS2_labelToK, bandstructure_orth_basis
-from src.from_tb.utils import plot_bands
-import from_tb.parse_and_FT as parse_and_FT
+from tb_calculations.extract_observables import MOS2_LABEL_TO_K, bandstructure_orth_basis
+from tb_calculations.utils import plot_bands
+import tb_calculations.parse_and_FT as parse_and_FT
 from ase.spectrum.band_structure import BandStructure
 import numpy as np
-import sys
 import matplotlib.pyplot as plt
 
 
