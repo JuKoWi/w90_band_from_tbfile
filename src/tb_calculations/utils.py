@@ -37,11 +37,27 @@ def eV_to_au(eV):
 def au_to_eV(au):
     return au * sc.constants.physical_constants['Hartree energy in eV'][0]
 
-def cond_au_to_SI(au):
+def cond_3D_au_to_SI(au):
     e = sc.constants.e
     h_bar = sc.constants.hbar
     a_0 = sc.constants.physical_constants['atomic unit of length'][0]
     return au * e**2/(h_bar * a_0)
+
+def cond_2D_au_to_SI(au):
+    e = sc.constants.e
+    h_bar = sc.constants.hbar
+    a_0 = sc.constants.physical_constants['atomic unit of length'][0]
+    return au * e**2/h_bar
+
+def sigma_to_eps(sigma_si, omega_si):
+    """calculate permittivity epsilon from conductivity sigma and respective frequencies omega in SI-units"""
+    epsilon = 1 + 1j * sigma_si/(sc.constants.epsilon_0 * omega_si[:,None,None])
+
+def omega_au_SI(omega_au):
+    """convert frequency omega from atomic units to SI (1/s)"""
+    return omega_au/sc.constants.physical_constants['atomic unit of time'][0]
+
+
 
 def parse_dftb_band(filepath, n_bands, points_per_segment):
     with open(file=filepath, mode='r') as f:
@@ -218,4 +234,4 @@ def check_vector_hermitian(pk, atol):
     return is_hermitian
 
 if __name__ == "__main__":
-    print(cond_au_to_SI(1))
+    pass

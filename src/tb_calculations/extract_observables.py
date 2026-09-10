@@ -388,16 +388,16 @@ def optical_cond_from_v(Sr, Hr, Rr, kFrac, lattice_au, cells, degeneracies, vale
             pk1 = pk_bloch[:,m,n,:]
             pk2 = pk_bloch[:,n,m,:]
             pk_prod = np.einsum('ka, kb -> kab', pk1, pk2)
-            denominator = 1 /(dE[None,:] - omega[:,None] + 1j*0.5*eta)
+            denominator = 1 /(dE[None,:] + omega[:,None] + 1j*0.5*eta)
             if path is None:
                 path = np.einsum_path('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize='optimal')[0]
             sigma += np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize=path)
     cell_volume = np.linalg.det(a=lattice_au)
     volume = cell_volume * Nk
-    prefac = -1j * 2/(Nk * volume) # 2 for spin degeneracy, Nk for kpoint-weights
+    prefac = -1j * 2/volume # 2 for spin degeneracy
     sigma = prefac * sigma
     print(f"convergence criterion: max(Im(sigma))/max(Re(sigma)) = {np.max(np.imag(sigma[:,0,0]))/np.max(np.real(sigma[:,0,0]))}")
-    return parse_and_FT.au_to_eV(omega), sigma
+    return omega, sigma
 
 
 def optical_cond_slow(Sr, Hr, Rr, kFrac, lattice_au, cells, degeneracies, valence_num, eta_eV, normalized=True, range_omega=(1,10), T_K=0):

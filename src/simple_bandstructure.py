@@ -15,8 +15,8 @@ from tb_calculations import utils
 #                                         points_per_segment=[101, 100, 100],
 #                                         lattice_ang=np.array([[3.18, 0.0, 0.0], [-1.59, 2.753960784034515, 0.0], [0.0, -0.0, 43.19]]),
 #                                         )
-# bs = Bands.from_custom_tb(tb_file='data/seedname_mos2/seedname_tb.dat', bz_path='GMKG', label_to_k=utils.MOS2_LABEL_TO_K)
-# bs.ef_to_zero(Ef=-4.6)
+bs = Bands.from_custom_tb(tb_file='data/seedname_mos2/seedname_tb.dat', bz_path='GMKG', label_to_k=utils.MOS2_LABEL_TO_K)
+bs.ef_to_zero(Ef=-4.6)
 # bs_dftb.ef_to_zero(Ef=-4.6)
 
 """Graphene"""
@@ -30,7 +30,7 @@ from tb_calculations import utils
 #                                          )
 
 """Diamond"""
-bs =Bands.from_custom_tb(tb_file='data/seedname_diamond/seedname_tb.dat', bz_path='LGXL', label_to_k=utils.FCC_LABEL_TO_K)
+# bs =Bands.from_custom_tb(tb_file='data/seedname_diamond/seedname_tb.dat', bz_path='LGXL', label_to_k=utils.FCC_LABEL_TO_K)
 
 plot_bandstructures([bs], 
                     # energy_range_eV=(-10, 5)
