@@ -86,7 +86,7 @@ facevals = quantity[faces].mean(axis=1)
 norm = plt.Normalize(vmin=facevals.min(), vmax=facevals.max())
 cmap = plt.get_cmap('gnuplot')
 
-fig, ax = plt.subplots(figsize=(12,9), subplot_kw=dict(projection='3d', computed_zorder=False))
+fig, ax = plt.subplots(figsize=(12,9), subplot_kw=dict(projection='3d', computed_zorder=False), facecolor='#F2F2F2')
 
 loop = np.vstack([hexagon, hexagon[:1]])
 ax.plot(loop[:, 0], loop[:, 1], E_fermi, color='k', lw=1.5)
@@ -117,8 +117,9 @@ mappable = plt.cm.ScalarMappable(norm=norm, cmap=cmap,)
 mappable.set_array([])
 cb_ = fig.colorbar(mappable, ax=ax, shrink=0.45, aspect=25, pad=0.05, panchor=(1.0,0.7))
 # cb_.set_label(r'$||\mathbf{v}_\mathrm{vc}||$ [a.u.]', fontsize=11)
-cb_.set_label(r'$\left|\langle c,\mathbf{k}|\hat{\mathbf{v}}|v,\mathbf{k}\rangle\right|$  [a.u.]', fontsize=11)
+cb_.set_label(r'$\left|\langle c,\mathbf{k}|\hat{\mathbf{v}}|v,\mathbf{k}\rangle\right|$  [$a_0 E_\mathrm{h} /\hbar$]', fontsize=12)
 cb_.ax.tick_params(labelsize=9)
+# cb_.set_facecolor('#F2F2F2')
 
 
 for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
@@ -152,6 +153,8 @@ ymin, ymax = ax.get_ylim()
 for E, c in ((E_vbm, C_VB), (E_cbm, C_CB)):
     ax.plot(xmin, [ymin,ymax], [E, E], color='grey', ls=(0, (5, 3)), lw=1.0, zorder=0)
     ax.plot([xmin, xmax], ymax, [E, E], color='grey', ls=(0, (5, 3)), lw=1.0, zorder=0)
+
+ax.set_facecolor('#F2F2F2')
 
 ax.view_init(elev=15, azim=-60, roll=0)
 fig.savefig("3d_band.pdf", bbox_inches=Bbox([[2,1.8],[10.5,6.5]]))
