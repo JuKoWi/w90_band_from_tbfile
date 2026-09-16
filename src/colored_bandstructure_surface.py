@@ -104,11 +104,11 @@ surf_cb = ax.plot_trisurf(tri, cb[idx], linewidth=0, shade=False, antialiased=Fa
 surf_cb.set_fc(cmap(norm(facevals)))
 ax.set_xticks([]); ax.set_yticks([])
 ax.set_xlabel(''); ax.set_ylabel('')
-ax.set_zlabel('E [eV]', fontsize=11, 
+ax.set_zlabel('E [eV]', fontsize=13, 
               labelpad=8
               )
-ax.set_xlabel(r'$k_x$', fontsize=11)
-ax.set_ylabel(r'$k_y$', fontsize=11)
+ax.set_xlabel(r'$k_x$', fontsize=14)
+ax.set_ylabel(r'$k_y$', fontsize=14)
 ax.tick_params(axis='z', labelsize=10)
 
 
@@ -117,7 +117,7 @@ mappable = plt.cm.ScalarMappable(norm=norm, cmap=cmap,)
 mappable.set_array([])
 cb_ = fig.colorbar(mappable, ax=ax, shrink=0.45, aspect=25, pad=0.05, panchor=(1.0,0.7))
 # cb_.set_label(r'$||\mathbf{v}_\mathrm{vc}||$ [a.u.]', fontsize=11)
-cb_.set_label(r'$\left|\langle c,\mathbf{k}|\hat{\mathbf{v}}|v,\mathbf{k}\rangle\right|$  [$a_0 E_\mathrm{h} /\hbar$]', fontsize=12)
+cb_.set_label(r'$\left|\langle c,\mathbf{k}|\hat{\mathbf{v}}|v,\mathbf{k}\rangle\right|$  [$a_0 E_\mathrm{h} /\hbar$]', fontsize=13)
 cb_.ax.tick_params(labelsize=9)
 # cb_.set_facecolor('#F2F2F2')
 

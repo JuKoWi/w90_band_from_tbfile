@@ -25,6 +25,7 @@ def read_tb(fname, orthogonal=False, onlyReal=False, onlyLattice=False):
             all atomic units
 
     """
+    print(f"orthogonal = {orthogonal}")
     origFname = None
     for fn in [fname, fname + "_tb.dat", fname + ".dat"]:
         if os.path.exists(fn):
@@ -53,7 +54,6 @@ def read_tb(fname, orthogonal=False, onlyReal=False, onlyLattice=False):
         R = np.empty((nR, numWann, numWann, 3), dtype=complex)
         if not orthogonal:
             S = np.empty((nR, numWann, numWann), dtype=complex)
-
 
         for ri in range(nR):
             f.readline()
@@ -100,8 +100,7 @@ def read_tb(fname, orthogonal=False, onlyReal=False, onlyLattice=False):
     return lattice_au, cells, degeneracy, H_au, S, R_au 
 
 """ Reads _tb file from wannier90 file. The units are eV and eV * Angstrom """
-"""dont  use symmetrize"""
-def read_tb_momentum(fname, onlyReal=False, onlyLattice=False):
+def read_tb_momentum(fname, onlyReal=False, onlyLattice=False, orthogonal=False):
     """Units in file:
             lattice-vectors: Angstrom
             H: eV
@@ -137,8 +136,9 @@ def read_tb_momentum(fname, onlyReal=False, onlyLattice=False):
         degeneracy = np.array(degeneracy)
         cells = np.empty((nR, 3), dtype=int)
         H = np.empty((nR, numWann, numWann), dtype=complex)
-        S = np.empty((nR, numWann, numWann), dtype=complex)
         p_au = np.empty((nR, numWann, numWann, 3), dtype=complex)
+        if not orthogonal:
+            S = np.empty((nR, numWann, numWann), dtype=complex)
 
         for ri in range(nR):
             f.readline()
@@ -148,12 +148,16 @@ def read_tb_momentum(fname, onlyReal=False, onlyLattice=False):
                     sp = f.readline().split()
                     aS, bS = [int(s)-1 for s in sp[:2]]
                     Hreal, Himag = [float(s) for s in sp[2:4:]]
-                    Sreal, Simag = [float(s) for s in sp[4:6:]]
+                    if not orthogonal:
+                        Sreal, Simag = [float(s) for s in sp[4:6:]]
                     if onlyReal:
                         Himag = 0
-                        Simag = 0
+                        if not orthogonal:
+                            Simag = 0
                     H[ri, aS, bS] = Hreal + 1j * Himag
-                    S[ri, aS, bS] = Sreal + 1j * Simag
+                    if not orthogonal:
+                        S[ri, aS, bS] = Sreal + 1j * Simag
+
                     
         # momentum elements
         for ri in range(nR):
@@ -170,6 +174,13 @@ def read_tb_momentum(fname, onlyReal=False, onlyLattice=False):
                         pImag = 0
                     p_au[ri, aS, bS] = rReal + 1j * pImag
     H_au = eV_to_au(H)
+    if orthogonal:
+        S = np.zeros((nR, numWann, numWann))
+        for i, cell in enumerate(cells): 
+            if np.allclose(cell, [0,0,0]):
+                S[i] = np.eye(numWann)
+            else:
+                S[i] = np.zeros((numWann, numWann))
     return lattice_au, cells, degeneracy, H_au, S, p_au
 
 def check_pos_op_properties(lattice_au, cells, S, R_au):

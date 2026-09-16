@@ -27,16 +27,16 @@ class Bands():
         self.e_fermi = None
 
     @classmethod
-    def from_custom_tb(cls, tb_file, bz_path, label_to_k):
+    def from_custom_tb(cls, tb_file, bz_path, label_to_k, orthogonal=False):
         self = cls()
         self.method = "Custom TB"
         self.path = bz_path
-        lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file)
+        lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file, orthogonal=orthogonal)
         segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=lattice, label_to_k=label_to_k)
         self.relpos_segments = [s[1] for s in segments]
 
         ksegments = [s[0] for s in segments]
-        bands = extract_observables.bandstructure_from_k(tb_file=tb_file, ksegments=ksegments)
+        bands = extract_observables.bandstructure_from_k(tb_file=tb_file, ksegments=ksegments, orthogonal=orthogonal)
         self.bands_eV = [parse_and_FT.au_to_eV(b) for b in bands]
         self._normalize_relpos
         return self

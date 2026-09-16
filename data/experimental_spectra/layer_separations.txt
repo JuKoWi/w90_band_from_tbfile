@@ -1,0 +1,5 @@
+islam = 6.1 angstrom
+ermolaev = 7 angstrom
+ullberg = 6.5 angstrom
+zhang = 6.3 angstrom
+hsu = 

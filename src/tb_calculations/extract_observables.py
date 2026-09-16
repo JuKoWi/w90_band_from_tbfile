@@ -30,8 +30,8 @@ def bandstructure_orth_basis(lattice, cells, degeneracies, Hr, Sr, Rr, path):
         d_orth.append(dk_orth)
     return segments, labels, bands_orth, H_orth, S_orth, d_orth 
 
-def bandstructure_from_k(tb_file, ksegments):
-    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file)
+def bandstructure_from_k(tb_file, ksegments, orthogonal=False):
+    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file, orthogonal=orthogonal)
     bands = []
     H_orth = []
     for i, k_frac in enumerate(ksegments):
@@ -485,6 +485,65 @@ def absorption_spec_momentum(Sr, Hr, pr, kFrac, lattice, cells, degeneracies, va
     sigma = np.real(sigma)
     sigma /= np.max(np.abs(sigma[:,:2,:2]))
     return omega, sigma
+
+def optical_cond_tb_velocity(Sr, Hr, vr, kFrac, lattice_au, cells, degeneracies, valence_num, eta_eV, range_omega=(1,10), T_K=0):
+    """ 
+        until now only one smearing parameter
+
+        valence_num: number of valence bands
+        eta_eV: smearing parameter
+        range_omega: tuple with (start, end) of omega range in eV
+        Sr, Hr, Rr: matrix repesentation of S, H and velocity operator in real space. First index is the lattice vector. Has to match cells
+        kFrac: k-points in fractional coordinates which are used to sample the BZ
+        degeneracies: degeneracies of the cells/lattice points
+        """
+    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
+    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
+    vk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=vr, kFrac=kFrac)
+    eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
+    U_dagger = np.transpose(U, axes=(0,2,1)).conj()
+    vk_bloch = np.einsum('kab, kbcz, kcd -> kadz', U_dagger, vk, U, optimize=True)
+    vk_bloch = vk_bloch*1e-10/(sc.constants.physical_constants['hartree-electron volt relationship'][0] * sc.constants.physical_constants['atomic unit of length'][0]) # from angstrom*eV -> a.u.
+    
+    hermitian_tolerance = np.max(np.abs(vk_bloch - np.transpose(vk_bloch, axes=(0,2,1,3)).conj()))
+    print(f"Bloch-basis velocity hermitian up to {hermitian_tolerance}")
+    # pk_bloch = make_momentum_hermitian(pk=pk_bloch)
+
+    bands = eigvals
+    Nk, Nbands = np.shape(eigvals)
+    omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
+    nomega = np.shape(omega)[0]
+    bandgap_ind = np.argmin(np.abs(bands[:,valence_num]- bands[:, valence_num-1]))
+    Ef = (bands[bandgap_ind, valence_num-1] + bands[bandgap_ind, valence_num]) /2
+    print(f"Fermi level at {parse_and_FT.au_to_eV(Ef)}")
+    eta = parse_and_FT.eV_to_au(eta_eV)
+
+    path = None
+    sigma = np.zeros(shape=(nomega, 3, 3), dtype=complex)
+    for m in range(Nbands):
+        fk_m = fermi_dirac(T_K=T_K, E_state_au=bands[:,m], mu_au=Ef)
+        for n in range(Nbands):
+            fk_n = fermi_dirac(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef)
+            dE = bands[:,m] - bands[:,n]
+            safe_dE = np.where(np.abs(dE) > 1e-8, dE, 1.0)
+            ratio = (fk_m - fk_n) / safe_dE
+            fermi_fac = np.where(np.abs(dE) > 1e-8,
+                                 ratio,
+                                 fermi_dirac_dE(T_K=T_K, E_state_au=bands[:,n], mu_au=Ef))
+            pk1 = vk_bloch[:,m,n,:]
+            pk2 = vk_bloch[:,n,m,:]
+            pk_prod = np.einsum('ka, kb -> kab', pk1, pk2)
+            denominator = 1 /(dE[None,:] + omega[:,None] + 1j*0.5*eta)
+            if path is None:
+                path = np.einsum_path('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize='optimal')[0]
+            sigma += np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize=path)
+    cell_volume = np.linalg.det(a=lattice_au)
+    volume = cell_volume * Nk
+    prefac = -1j * 2/volume # 2 for spin degeneracy
+    sigma = prefac * sigma
+    print(f"convergence criterion: max(Im(sigma))/max(Re(sigma)) = {np.max(np.imag(sigma[:,0,0]))/np.max(np.real(sigma[:,0,0]))}")
+    return omega, sigma
+
 
 def sum_rule(sigma_au, omega_au):
     pass
