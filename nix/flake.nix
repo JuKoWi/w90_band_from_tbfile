@@ -22,6 +22,7 @@
 		    jupyter
 		    ipykernel
 		    snakeviz
+		    h5py
              ]);
 
         in {

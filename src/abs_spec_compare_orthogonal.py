@@ -1,5 +1,5 @@
 from tb_calculations.extract_observables import (
-    optical_cond_from_v,
+    optical_cond_from_r,
     optical_cond_slow,
 
 )
@@ -24,15 +24,15 @@ plt.rcParams['savefig.bbox'] = 'tight'
 
 lattice1, cells1, degeneracies1, Hr1, Sr1, Rr1 = parse_and_FT.read_tb("./data/seedname_mos2/seedname_tb.dat") 
 kFrac = k_grid(n_points=(20,20,1))
-omega, sigma = optical_cond_from_v(
+omega, sigma = optical_cond_from_r(
                                 Sr=Sr1, 
                                 Hr=Hr1, 
                                 Rr=Rr1, 
                                 kFrac=kFrac, 
-                                lattice_au=lattice1, 
-                                cells=cells1, 
+                                cellvec_au=lattice1, 
+                                lat_points=cells1, 
                                 degeneracies=degeneracies1, 
-                                valence_num=4, 
+                                filled_bands=4, 
                                 eta_eV=0.1,
                                 T_K=300,
                                    )

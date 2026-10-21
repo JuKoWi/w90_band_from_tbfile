@@ -1,7 +1,7 @@
 from tb_calculations.extract_observables import (
-    optical_cond_from_v,
+    optical_cond_from_r,
     optical_cond_slow,
-    optical_cond_tb_velocity,
+    optical_cond_from_v,
 
 )
 from tb_calculations.utils import (
@@ -46,37 +46,37 @@ omega_ref4, sigma_ref4, A_ref4 = read_experimental(file_n='data/experimental_spe
     
 
 lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb("./seedname_tb.dat") 
-kFrac = k_grid(n_points=(120,120,1))
+kFrac = k_grid(n_points=(20,20,1))
 path_sigma = Path("sigma.npy")
 path_omega = Path("omega.npy")
 if path_omega.exists() and path_sigma.exists():
     omega = np.load(file=path_omega)
     sigma = np.load(file=path_sigma)
 else:
-    omega, sigma = optical_cond_from_v(
+    omega, sigma = optical_cond_from_r(
                                     Sr=Sr, 
                                     Hr=Hr, 
                                     Rr=Rr, 
                                     kFrac=kFrac, 
-                                    lattice_au=lattice, 
-                                    cells=cells, 
+                                    cellvec_au=lattice, 
+                                    lat_points=cells, 
                                     degeneracies=degeneracies, 
-                                    valence_num=9, 
+                                    filled_bands=9, 
                                     eta_eV=0.1,
                                     T_K=300,
                                        )
 
     np.save(file="omega", arr=omega)
     np.save(file='sigma', arr=sigma)
-lattice_w, cells_w, degeneracies_w, Hr_w, Sr_w, vr_w = parse_and_FT.read_tb_momentum(fname='./data/martin_qe_mos2_ref/MoS2_custom_tb.dat', orthogonal=True)
-omega_wannier, sigma_wannier = optical_cond_tb_velocity(Sr=Sr_w, Hr=Hr_w, vr=vr_w, kFrac=kFrac, cells=cells_w, valence_num=7, lattice_au=lattice_w, degeneracies=degeneracies_w, eta_eV=0.1, range_omega=(1,10), T_K=300)
+# lattice_w, cells_w, degeneracies_w, Hr_w, Sr_w, vr_w = parse_and_FT.read_tb_momentum(fname='./data/martin_qe_mos2_ref/MoS2_custom_tb.dat', orthogonal=True)
+# omega_wannier, sigma_wannier = optical_cond_tb_velocity(Sr=Sr_w, Hr=Hr_w, vr=vr_w, kFrac=kFrac, cells=cells_w, valence_num=7, lattice_au=lattice_w, degeneracies=degeneracies_w, eta_eV=0.1, range_omega=(1,10), T_K=300)
 # plot 3d conductivity in SI
 omega_eV = au_to_eV(omega)
 re_sigma_3d = np.real(sigma)
 re_sigma_3d_SI = cond_3D_au_to_SI(re_sigma_3d)
-omega_w_eV = au_to_eV(omega_wannier)
-re_sigma_w_3d = np.real(sigma_wannier)
-re_sigma_w_3d_SI = cond_3D_au_to_SI(re_sigma_w_3d)
+# omega_w_eV = au_to_eV(omega_wannier)
+# re_sigma_w_3d = np.real(sigma_wannier)
+# re_sigma_w_3d_SI = cond_3D_au_to_SI(re_sigma_w_3d)
 
 fig, ax = plt.subplots(figsize=(6,4.5), facecolor='#F2F2F2')
 ax.plot(omega_eV, re_sigma_3d_SI[:,0,0], label=r'$\sigma_{xx}, \sigma_{yy}$')
@@ -95,11 +95,11 @@ fig, ax = plt.subplots(figsize=(6,4.5),facecolor='#F2F2F2')
 ax.plot(omega_eV, re_sigma_2d[:,0,0], label=r'$\sigma_{xx}, \sigma_{yy}$')
 ax.plot(omega_eV, re_sigma_2d[:,0,1], label=r'$\sigma_{xy}, \sigma_{yx}$')
 #reference from quantum espresso
-re_sigma_w_2d = np.real(lattice_w[2,2] * sigma_wannier)
-scale = np.max(re_sigma_2d[:,0,0]) / np.max(re_sigma_w_2d[:,0,0])
-print(scale)
-ax.plot(omega_w_eV, re_sigma_w_2d[:,0,0], '--', color='blue', label=r'$\sigma_{xx}$ Quantum Espresso')
-ax.plot(omega_w_eV, re_sigma_w_2d[:,0,1], '--', color='orange', label=r'$\sigma_{xy}$ Quantum Espresso')
+# re_sigma_w_2d = np.real(lattice_w[2,2] * sigma_wannier)
+# scale = np.max(re_sigma_2d[:,0,0]) / np.max(re_sigma_w_2d[:,0,0])
+# print(scale)
+# ax.plot(omega_w_eV, re_sigma_w_2d[:,0,0], '--', color='blue', label=r'$\sigma_{xx}$ Quantum Espresso')
+# ax.plot(omega_w_eV, re_sigma_w_2d[:,0,1], '--', color='orange', label=r'$\sigma_{xy}$ Quantum Espresso')
 ax.set_xlabel(r"$\omega \ [\mathrm{eV}]$")
 ax.set_ylabel(r"$\text{Re}(\sigma^{2D}) \ [\text{a.u.}]$")
 ax.set_facecolor('#F2F2F2')
@@ -109,7 +109,7 @@ plt.show()
 
 #plot sheet conductivity in SI
 re_sigma_2d_SI = cond_2D_au_to_SI(re_sigma_2d)
-re_sigma_w_2d_SI = cond_2D_au_to_SI(re_sigma_w_2d)
+# re_sigma_w_2d_SI = cond_2D_au_to_SI(re_sigma_w_2d)
 fig, ax = plt.subplots(figsize=(6,4.5),facecolor='#F2F2F2')
 ax.plot(omega_eV, re_sigma_2d_SI[:,0,0], label=r'$\sigma_{xx}, \sigma_{yy}$')
 ax.plot(omega_eV, re_sigma_2d_SI[:,0,1], label=r'$\sigma_{xy}, \sigma_{yx}$')
@@ -128,13 +128,13 @@ plt.show()
 omega_si = omega_au_SI(omega_eV)
 epsilon_SI = sigma_to_eps(sigma_si=cond_3D_au_to_SI(sigma), omega_si=omega_si)
 absorbance_2d_SI = bohr_to_angstrom(lattice[2,2]) * 1e-10 * re_sigma_3d_SI/(sc.constants.epsilon_0 * sc.constants.c)
-omega_w_SI = omega_au_SI(omega_w_eV)
-epsilon_w_SI = sigma_to_eps(sigma_si=cond_3D_au_to_SI(sigma_wannier), omega_si=omega_w_SI)
-absorbance_w_2d_SI = bohr_to_angstrom(lattice_w[2,2]) * 1e-10 * re_sigma_w_3d_SI/(sc.constants.epsilon_0 * sc.constants.c)
+# omega_w_SI = omega_au_SI(omega_w_eV)
+# epsilon_w_SI = sigma_to_eps(sigma_si=cond_3D_au_to_SI(sigma_wannier), omega_si=omega_w_SI)
+# absorbance_w_2d_SI = bohr_to_angstrom(lattice_w[2,2]) * 1e-10 * re_sigma_w_3d_SI/(sc.constants.epsilon_0 * sc.constants.c)
 fig, ax = plt.subplots(figsize=(6,4.5), facecolor='#F2F2F2')
 ax.plot(omega_eV, absorbance_2d_SI[:,0,0], label=r'DFTB')
 # ax.plot(omega_eV, absorbance_2d_SI[:,0,1], label=r'$\sigma_{xy}, \sigma_{yx}$')
-ax.plot(omega_w_eV, absorbance_w_2d_SI[:,0,0], label=r'Quantum ESPRESSO')
+# ax.plot(omega_w_eV, absorbance_w_2d_SI[:,0,0], label=r'Quantum ESPRESSO')
 # ax.plot(omega_w_eV, absorbance_w_2d_SI[:,0,1], '--', color='orange', label=r'$\sigma_{xy}$ Quantum Espresso')
 # ax.plot(omega_ref1, A_ref1, label='Experiment: Islam')
 # ax.plot(omega_ref2, A_ref2, label='Experiment: Ermolaev')

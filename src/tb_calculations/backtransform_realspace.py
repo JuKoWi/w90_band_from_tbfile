@@ -2,7 +2,7 @@
 to generate orthogonal tight binding file from non-orthogonal tight binding file 
 """
 
-from tb_calculations.parse_and_FT import read_tb 
+from tb_calculations.parse_and_FT import read_tb, Hk_degenerate
 from tb_calculations.extract_observables import *
 from tb_calculations.utils import k_grid, bohr_to_angstrom, au_to_eV
 from collections import Counter
@@ -113,12 +113,13 @@ def fold_to_wignerseitz(Rextent, lattice, fft_matrices):
     # plt.show()
     return Rpoints_folded, ndeg, fft_matrices_folded 
 
-def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filename="seedname_orth.dat"):
+def write_wannierfile(Rpoints, degeneracy, lattice_au, Hr, posr, Sr=None, filename="seedname_orth.dat", momentum=False):
     """write wannier90 file with hamiltonian Hr and position-operator posr for a
     set of lattice vectors Rpoints"""
     lattice_angstrom = bohr_to_angstrom(lattice_au)
     Hr = au_to_eV(Hr)
-    posr = bohr_to_angstrom(posr)
+    if momentum==False:
+        posr = bohr_to_angstrom(posr)
 
     Norbs = np.shape(Hr)[-1]
     Nlattice = np.shape(Rpoints)[0]
@@ -193,6 +194,28 @@ def nonorthogonal_wannierfile(filename_in, shape_tuple):
     print(f'maximal number of unit cells in any direction: {np.max(Rpoints_folded)}')
     print('start writing')
     write_wannierfile(Hr=Hr_folded, posr=posr_folded, Rpoints=Rpoints_folded, degeneracy=ndeg, lattice_au=lattice_au, Sr=Sr_folded, filename="seedname_nonorth.dat")
+    stop = time.time()
+    print(f"Function took {stop-start} s to execute")
+
+def nonorthogonal_velocity_realspace(filename_in, shape_tuple):
+    start = time.time()
+    kPoints = k_grid(n_points=shape_tuple)
+    lattice_au, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(filename_in)
+    Hk_at = Hk_degenerate(cells=cells, Hr=Hr, kFrac=kPoints, degeneracies=degeneracies)
+    Sk_at = Hk_degenerate(cells=cells, Hr=Sr, kFrac=kPoints, degeneracies=degeneracies)
+    vk_at = get_velocity_atomic(Hr=Hr, Sr=Sr, Rr=Rr, degeneracies=degeneracies, kFrac=kPoints, cells=cells, lattice=lattice_au)
+    Hr = transform_hamiltonian(Hk=Hk_at, shape_tuple=shape_tuple)
+    Sr = transform_hamiltonian(Hk=Sk_at, shape_tuple=shape_tuple)
+    vr = transform_dipole(dk=vk_at, shape_tuple=shape_tuple)
+    fftmatrices = [Hr, vr, Sr]
+    Rpoints_folded, ndeg, fftmatrices_folded = fold_to_wignerseitz(Rextent=shape_tuple, lattice=lattice_au, fft_matrices=fftmatrices)
+    Hr_folded = fftmatrices_folded[0]
+    Sr_folded = fftmatrices_folded[2]
+    vr_folded = fftmatrices_folded[1]
+    vr_folded = np.where(np.abs(vr_folded) < 1e-10, 0, vr_folded)
+    print(f'maximal number of unit cells in any direction: {np.max(Rpoints_folded)}')
+    print('start writing')
+    write_wannierfile(Hr=Hr_folded, posr=vr_folded, Rpoints=Rpoints_folded, degeneracy=ndeg, lattice_au=lattice_au, Sr=Sr_folded, filename="seedname_nonorth.dat", momentum=True)
     stop = time.time()
     print(f"Function took {stop-start} s to execute")
 

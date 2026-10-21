@@ -9,6 +9,7 @@ reciprocal space. Contains:
 
 """
 import numpy as np
+import h5py
 import os
 from tb_calculations.utils import *
 
@@ -182,6 +183,36 @@ def read_tb_momentum(fname, onlyReal=False, onlyLattice=False, orthogonal=False)
             else:
                 S[i] = np.zeros((numWann, numWann))
     return lattice_au, cells, degeneracy, H_au, S, p_au
+
+def parse_hdf5(filename):
+    with h5py.File(filename, 'r') as f:
+        if f['unit_cell'].attrs.get('unit') != 'a.u.':
+            raise ValueError("Expected unit for cell vectors: a.u.")
+        if f['H'].attrs.get('unit') != 'a.u.':
+            raise ValueError("Expected unit for Hamiltonian: a.u.")
+
+        tb_data = {}
+        tb_data['cell'] = np.array(f["unit_cell"])
+        tb_data['degen'] = np.array(f['degeneracies'])
+        tb_data['lat_points'] = np.array(f['R_points'])
+        tb_data['H'] = np.array(f['H'])
+        tb_data['S'] = np.array(f['S'])
+
+        if 'p' in f:
+            if f['p'].attrs.get('unit') != 'a.u.':
+                raise ValueError("Expected unit for momentum: a.u.")
+            tb_data['p'] = np.transpose(np.array(f['p']), axes=(0,2,3,1)) #put cartesian component last (lattice, orbital, orbital, component)
+        else:
+            tb_data['p'] = None
+        if 'r' in f:
+            if f['r'].attrs.get('unit') != 'a.u.':
+                raise ValueError("Expected unit for position: a.u.")
+            tb_data['r'] = np.transpose(np.array(f['r']), axes=(0,2,3,1)) #put cartesian component last (lattice, orbital, orbital, component)
+            tb_data['approx'] = f['r'].attrs.get('approximation')
+        else:
+            tb_data['r'] = None
+        check_pos_op_properties(lattice_au=tb_data['cell'], cells=tb_data['lat_points'], S=tb_data['S'], R_au=tb_data['r'])
+    return tb_data
 
 def check_pos_op_properties(lattice_au, cells, S, R_au):
     """make sure that for every lattice point there is also the inverse in the list. 

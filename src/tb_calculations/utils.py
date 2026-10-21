@@ -38,6 +38,7 @@ def au_to_eV(au):
     return au * sc.constants.physical_constants['Hartree energy in eV'][0]
 
 def cond_3D_au_to_SI(au):
+    """convert 3D optical conductivity tensor to SI units"""
     e = sc.constants.e
     h_bar = sc.constants.hbar
     a_0 = sc.constants.physical_constants['atomic unit of length'][0]
