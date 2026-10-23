@@ -398,15 +398,15 @@ def optical_cond_from_r(Sr, Hr, Rr, kFrac, cellvec_au, lat_points, degeneracies,
     sigma = prefac * sigma
     return omega, sigma
 
-def optical_cond_from_p(Sr, Hr, pr, kFrac, lattice_au, cells, degeneracies, valence_num, eta_eV, range_omega=(1,10), T_K=0):
+def optical_cond_from_p(Sr, Hr, pr, kFrac, cellvec_au, lat_points, degeneracies, filled_bands, eta_eV, range_omega=(1,10), T_K=0):
     """
         calculate optical conductivity tensor directly from tight binding velocity matrix elements
         valence_num: number of valence bands
     """
-    Hk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
-    Sk_atomic = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
+    Hk_atomic = parse_and_FT.Hk_degenerate(cells=lat_points, degeneracies=degeneracies, Hr=Hr, kFrac=kFrac)
+    Sk_atomic = parse_and_FT.Hk_degenerate(cells=lat_points, degeneracies=degeneracies, Hr=Sr, kFrac=kFrac)
     eigvals, U = sc.linalg.eigh(Hk_atomic, Sk_atomic)
-    pk_bloch = get_momentum_bloch_realspace(Hr=Hr, Sr=Sr, pr=pr, degeneracies=degeneracies, kPoints=kFrac, cells=cells, lattice=lattice_au)
+    pk_bloch = get_momentum_bloch_realspace(Hr=Hr, Sr=Sr, pr=pr, degeneracies=degeneracies, kPoints=kFrac, cells=lat_points, lattice=cellvec_au)
     hermitian_tolerance = np.max(np.abs(pk_bloch - np.transpose(pk_bloch, axes=(0,2,1,3)).conj()))
     print(f"Bloch-basis momentum hermitian up to {hermitian_tolerance}")
     # pk_bloch = make_momentum_hermitian(pk=pk_bloch)
@@ -415,8 +415,8 @@ def optical_cond_from_p(Sr, Hr, pr, kFrac, lattice_au, cells, degeneracies, vale
     Nk, Nbands = np.shape(eigvals)
     omega = np.linspace(parse_and_FT.eV_to_au(range_omega[0]),parse_and_FT.eV_to_au(range_omega[1]),5000)
     nomega = np.shape(omega)[0]
-    bandgap_ind = np.argmin(np.abs(bands[:,valence_num]- bands[:, valence_num-1]))
-    Ef = (bands[bandgap_ind, valence_num-1] + bands[bandgap_ind, valence_num]) /2
+    bandgap_ind = np.argmin(np.abs(bands[:,filled_bands]- bands[:, filled_bands-1]))
+    Ef = (bands[bandgap_ind, filled_bands-1] + bands[bandgap_ind, filled_bands]) /2
     print(f"Fermi level at {parse_and_FT.au_to_eV(Ef)}")
     eta = parse_and_FT.eV_to_au(eta_eV)
 
@@ -439,7 +439,7 @@ def optical_cond_from_p(Sr, Hr, pr, kFrac, lattice_au, cells, degeneracies, vale
             if path is None:
                 path = np.einsum_path('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize='optimal')[0]
             sigma += np.einsum('kab,k,ok ->oab ', pk_prod, fermi_fac, denominator, optimize=path)
-    cell_volume = np.linalg.det(a=lattice_au)
+    cell_volume = np.linalg.det(a=cellvec_au)
     volume = cell_volume * Nk
     prefac = -1j * 2/volume # 2 for spin degeneracy, momentum formula
     sigma = prefac * sigma

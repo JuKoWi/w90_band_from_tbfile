@@ -185,10 +185,11 @@ def read_tb_momentum(fname, onlyReal=False, onlyLattice=False, orthogonal=False)
     return lattice_au, cells, degeneracy, H_au, S, p_au
 
 def parse_hdf5(filename):
+    """returns everything in a.u."""
     with h5py.File(filename, 'r') as f:
-        if f['unit_cell'].attrs.get('unit') != 'a.u.':
+        if f['unit_cell'].attrs.get('unit') != 'atomic unit':
             raise ValueError("Expected unit for cell vectors: a.u.")
-        if f['H'].attrs.get('unit') != 'a.u.':
+        if f['H'].attrs.get('unit') != 'atomic unit':
             raise ValueError("Expected unit for Hamiltonian: a.u.")
 
         tb_data = {}
@@ -199,13 +200,13 @@ def parse_hdf5(filename):
         tb_data['S'] = np.array(f['S'])
 
         if 'p' in f:
-            if f['p'].attrs.get('unit') != 'a.u.':
+            if f['p'].attrs.get('unit') != 'atomic unit':
                 raise ValueError("Expected unit for momentum: a.u.")
             tb_data['p'] = np.transpose(np.array(f['p']), axes=(0,2,3,1)) #put cartesian component last (lattice, orbital, orbital, component)
         else:
             tb_data['p'] = None
         if 'r' in f:
-            if f['r'].attrs.get('unit') != 'a.u.':
+            if f['r'].attrs.get('unit') != 'atomic unit':
                 raise ValueError("Expected unit for position: a.u.")
             tb_data['r'] = np.transpose(np.array(f['r']), axes=(0,2,3,1)) #put cartesian component last (lattice, orbital, orbital, component)
             tb_data['approx'] = f['r'].attrs.get('approximation')

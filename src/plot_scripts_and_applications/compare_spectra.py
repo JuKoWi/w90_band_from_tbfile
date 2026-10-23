@@ -36,7 +36,7 @@ def compare_momentum_velocity(file_velocity, file_momentum, valence_num, ktuple)
     omega1, sigma1 = optical_cond_from_r(Sr=Sr1, Hr=Hr1, Rr=Rr1, kFrac=kFrac, cellvec_au=lattice1, lat_points=cells1, degeneracies=degeneracies1, filled_bands=valence_num, eta_eV=0.1, range_omega=(0,10))
 
     lattice2, cells2, degeneracies2, Hr2, Sr2, pr2 = parse_and_FT.read_tb_momentum(file_momentum) 
-    omega2, sigma2 = optical_cond_from_p(Sr=Sr2, Hr=Hr2, pr=pr2, kFrac=kFrac, lattice_au=lattice2, cells=cells2, degeneracies=degeneracies2, valence_num=valence_num, eta_eV=0.1)
+    omega2, sigma2 = optical_cond_from_p(Sr=Sr2, Hr=Hr2, pr=pr2, kFrac=kFrac, cellvec_au=lattice2, lat_points=cells2, degeneracies=degeneracies2, filled_bands=valence_num, eta_eV=0.1)
         
     fig, ax = plt.subplots(figsize=(6,4.5))
     ax.plot(omega1, sigma1[:,0,0], label=r'$\sigma_{x,x}, \sigma_{y,y} \ \mathbf{v}$')
@@ -101,7 +101,7 @@ def plot_single(velocity:bool, file, valence_num, ktuple):
         omega1, sigma1 = optical_cond_from_r(Sr=Sr1, Hr=Hr1, Rr=Rr1, kFrac=kFrac, cellvec_au=lattice1, lat_points=cells1, degeneracies=degeneracies1, filled_bands=valence_num, eta_eV=0.1, range_omega=(0,10), T_K=0)
     else:
         lattice1, cells1, degeneracies1, Hr1, Sr1, pr1 = parse_and_FT.read_tb_momentum(file) 
-        omega1, sigma1 = optical_cond_from_p(Sr=Sr1, Hr=Hr1, pr=pr1, kFrac=kFrac, lattice_au=lattice1, cells=cells1, degeneracies=degeneracies1, valence_num=valence_num, eta_eV=0.1)
+        omega1, sigma1 = optical_cond_from_p(Sr=Sr1, Hr=Hr1, pr=pr1, kFrac=kFrac, cellvec_au=lattice1, lat_points=cells1, degeneracies=degeneracies1, filled_bands=valence_num, eta_eV=0.1)
 
     fig, ax = plt.subplots(figsize=(6,4.5))
     ax.plot(omega1, sigma1[:,0,0], label=r'$\sigma_{x,x}, \sigma_{y,y}$')
