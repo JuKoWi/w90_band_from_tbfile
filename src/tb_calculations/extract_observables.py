@@ -33,7 +33,16 @@ def bandstructure_orth_basis(lattice, cells, degeneracies, Hr, Sr, Rr, path):
     return segments, labels, bands_orth, H_orth, S_orth, d_orth 
 
 def bandstructure_from_k(tb_file, ksegments, orthogonal=False):
-    lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file, orthogonal=orthogonal)
+    if tb_file.endswith('.hdf5'):
+        tb_model = parse_and_FT.parse_hdf5(filename=tb_file)
+        lattice = tb_model['cell']
+        cells = tb_model['lat_points']
+        degeneracies = tb_model['degen']
+        Hr = tb_model['H']
+        Sr = tb_model['S']
+        Rr = tb_model['r']
+    else:
+        lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file, orthogonal=orthogonal)
     bands = []
     H_orth = []
     for i, k_frac in enumerate(ksegments):

@@ -49,6 +49,7 @@ def generate_spectra(tb_files, ktuple, filled_bands, momentum=False):
                                         T_K=300,
             )
             with h5py.File(f'{tb_model['approx']}-cond.hdf5', 'w') as f:
+                f.attrs['latest_change'] = str(np.datetime64("now"))
                 f.attrs['approx'] = tb_model['approx']
                 f.attrs['grid'] = ktuple
                 f.attrs['eta_eV'] = eta_eV
@@ -70,37 +71,41 @@ def compare_spectra(specfiles):
     plt.show()
 
 if __name__ == "__main__":
-    tb_files = ['graphene_mulliken.hdf5','graphene_onsite_expansion.hdf5', 'graphene_onsite_only.hdf5', 'graphene_shift_only.hdf5', 'graphene_sk.hdf5']
-    single = ['graphene_sk.hdf5']
-    generate_spectra(tb_files=single, ktuple=(30,30,1), filled_bands=4, momentum=True) 
-    spectra = ['onsite_expansion-cond.hdf5', 'sk-cond.hdf5', 'mulliken-cond.hdf5', 'shift_only-cond.hdf5', 'onsite_only-cond.hdf5']
-    lattice, cells, degeneracies, Hr, Sr, Rr = read_tb("./data/seedname_graphene/seedname_tb.dat") 
+    tb_files = ['GaAs_mulliken.hdf5','GaAs_onsite_expansion.hdf5', 
+                # 'GaAs_onsite_only.hdf5', 'GaAs_shift_only.hdf5', 
+                'GaAs_sk.hdf5']
+    # single = ['hBN_sk.hdf5']
+    # generate_spectra(tb_files=tb_files, ktuple=(100,100,1), filled_bands=4, momentum=False) 
+    spectra = ['onsite_expansion-cond.hdf5', 'sk-cond.hdf5', 'mulliken-cond.hdf5', 
+            #    'shift_only-cond.hdf5', 'onsite_only-cond.hdf5'
+               ]
+    compare_spectra(specfiles=spectra)
 
-    kFrac = k_grid(n_points=(30,30,1))
-    omega1, sigma1 = optical_cond_from_r(
-                                    Sr=Sr, 
-                                    Hr=Hr, 
-                                    Rr=Rr, 
-                                    kFrac=kFrac, 
-                                    cellvec_au=lattice, 
-                                    lat_points=cells, 
-                                    degeneracies=degeneracies, 
-                                    filled_bands=4, 
-                                    eta_eV=0.1,
-                                    T_K=300,
-                                       )
-    # compare_spectra(specfiles=spectra)
-    fig, ax = plt.subplots()
-    with h5py.File("momentum-cond.hdf5", 'r') as f:
-        omega2 = np.array(f['omega'])
-        sigma2 = np.array(f['sigma'])
-    ax.plot(au_to_eV(omega1), np.real(sigma1[:,0,0]), label='old seedname momentum')
-    print(np.allclose(np.real(sigma1[:,0,0]), np.real(sigma1[:,1,1])))
-    ax.plot(au_to_eV(omega2), np.real(sigma2[:,0,0]), label='new hdf5')
-    print(np.allclose(np.real(sigma2[:,0,0]), np.real(sigma2[:,1,1])))
-    ax.set_xlabel(r'$\omega$ [eV]')
-    ax.legend()
-    plt.show()
+    # lattice, cells, degeneracies, Hr, Sr, Rr = read_tb("./data/seedname_graphene/seedname_tb.dat") 
+    # kFrac = k_grid(n_points=(30,30,1))
+    # omega1, sigma1 = optical_cond_from_r(
+    #                                 Sr=Sr, 
+    #                                 Hr=Hr, 
+    #                                 Rr=Rr, 
+    #                                 kFrac=kFrac, 
+    #                                 cellvec_au=lattice, 
+    #                                 lat_points=cells, 
+    #                                 degeneracies=degeneracies, 
+    #                                 filled_bands=4, 
+    #                                 eta_eV=0.1,
+    #                                 T_K=300,
+    #                                    )
+    # fig, ax = plt.subplots()
+    # with h5py.File("momentum-cond.hdf5", 'r') as f:
+    #     omega2 = np.array(f['omega'])
+    #     sigma2 = np.array(f['sigma'])
+    # ax.plot(au_to_eV(omega1), np.real(sigma1[:,0,0]), label='old seedname momentum')
+    # print(np.allclose(np.real(sigma1[:,0,0]), np.real(sigma1[:,1,1])))
+    # ax.plot(au_to_eV(omega2), np.real(sigma2[:,0,0]), label='new hdf5')
+    # print(np.allclose(np.real(sigma2[:,0,0]), np.real(sigma2[:,1,1])))
+    # ax.set_xlabel(r'$\omega$ [eV]')
+    # ax.legend()
+    # plt.show()
 
 
     sys.exit()

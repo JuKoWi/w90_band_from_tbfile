@@ -21,6 +21,15 @@ FCC_LABEL_TO_K = {'G': np.array([0,0,0]),
                       'U': np.array([0.625, 0.75, 0.625]),
                       }
 
+WURTZITE_LABEL_TO_K = {
+    'G': np.array([0.0,  0.0,  0.0]),  # Gamma (Zone center)
+    'M': np.array([0.5,  0.0,  0.0]),  # Center of rectangular face
+    'K': np.array([1/3,  1/3,  0.0]),  # Vertex/Corner of the middle plane
+    'A': np.array([0.0,  0.0,  0.5]),  # Center of the top hexagonal face
+    'L': np.array([0.5,  0.0,  0.5]),  # Midpoint of the upper outer edge
+    'H': np.array([1/3,  1/3,  0.5]),  # Vertex/Corner of the top face
+}
+
 def angstrom_to_bohr(angstrom):
     meter = angstrom * sc.constants.angstrom
     bohr = meter / sc.constants.physical_constants['atomic unit of length'][0]
