@@ -23,8 +23,11 @@ class Bands():
         self.method = None
         self.path = None
         self.relpos_segments = None
+        self.ksegments = None
         self.bands_eV = None
         self.e_fermi = None
+        self.v_segments = None
+        self.p_segments = None
 
     @classmethod
     def from_seedname(cls, tb_file, bz_path, label_to_k, orthogonal=False):
@@ -35,10 +38,10 @@ class Bands():
         segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=lattice, label_to_k=label_to_k)
         self.relpos_segments = [s[1] for s in segments]
 
-        ksegments = [s[0] for s in segments]
-        bands = extract_observables.bandstructure_from_k(tb_file=tb_file, ksegments=ksegments, orthogonal=orthogonal)
+        self.ksegments = [s[0] for s in segments]
+        bands = extract_observables.bandstructure_from_k(tb_file=tb_file, ksegments=self.ksegments, orthogonal=orthogonal)
         self.bands_eV = [parse_and_FT.au_to_eV(b) for b in bands]
-        self._normalize_relpos
+        self._normalize_relpos()
         return self
 
     @classmethod
@@ -50,10 +53,10 @@ class Bands():
         segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=tb_model['cell'], label_to_k=label_to_k)
         self.relpos_segments = [s[1] for s in segments]
 
-        ksegments = [s[0] for s in segments]
-        bands = extract_observables.bandstructure_from_k(tb_file=tb_file, ksegments=ksegments, orthogonal=False)
+        self.ksegments = [s[0] for s in segments]
+        bands = extract_observables.bandstructure_from_k(tb_file=tb_file, ksegments=self.ksegments, orthogonal=False)
         self.bands_eV = [parse_and_FT.au_to_eV(b) for b in bands]
-        self._normalize_relpos
+        self._normalize_relpos()
         return self
 
     @classmethod
@@ -90,13 +93,26 @@ class Bands():
     def ef_to_zero(self, Ef):
         for i, b in enumerate(self.bands_eV):
             self.bands_eV[i] = b - Ef
-        self.efermi = 0
+        self.e_fermi = 0
 
     def _normalize_relpos(self):
         max = self.relpos_segments[-1][-1]
         for i, s in enumerate(self.relpos_segments):
             self.relpos_segments[i] = s/max
-            
+
+    def set_velocity(self, tb_model):
+        vk_segments = []
+        for seg in self.ksegments: 
+            vk = extract_observables.velocity_bloch_lee(Hr=tb_model['H'], Sr=tb_model['S'], Rr=tb_model['r'], degeneracies=tb_model['degen'], kPoints=seg, cells=tb_model['lat_points'], lattice_au=tb_model['cell'])
+            vk_segments.append(vk)
+        self.v_segments = vk_segments
+
+    def set_momentum(self, tb_model):
+        pk_segments = []
+        for seg in self.ksegments: 
+            pk = extract_observables.get_momentum_bloch(Hr=tb_model['H'], Sr=tb_model['S'], pr=tb_model['p'], degeneracies=tb_model['degen'], kPoints=seg, cells=tb_model['lat_points'], lattice=tb_model['cell'])
+            pk_segments.append(pk)
+        self.p_segments = pk_segments
 
 def plot_bandstructures(bs_list, energy_range_eV=None):
     fig, ax = plt.subplots(1, 1, figsize=(6,4.5))
@@ -119,4 +135,55 @@ def plot_bandstructures(bs_list, energy_range_eV=None):
         ax.set_ylim(bottom=energy_range_eV[0], top=energy_range_eV[1])
     ax.legend()
     plt.show()
+
+def colorcoded_bandstructures(bs, component, n_occ, energy_range_eV=None, momentum=False):
+    """Plot bandstructure colorcoded with norm of velocity between valence and conduction band
+        component: for inplane norm use xy, total is R^3 norm
+        n_valence: number of occupied bands
+        """
+    comp_options = ['x', 'y', 'z', 'xy', 'total']
+    if component not in comp_options:
+        raise ValueError("Invalid option for component to colocode bandstructure")
+    fig, ax = plt.subplots(1, 1, figsize=(6,4.5))
+    scale = 800
+    all_v_norms = []
+    v_segments = bs.p_segments if momentum else bs.v_segments 
+    for velocity in v_segments:
+        v_cond_valence = velocity[:,n_occ-1,n_occ,:]
+        if component == 'x':
+            v_norm = np.abs(v_cond_valence[:,0])
+        if component == 'y':
+            v_norm = np.abs(v_cond_valence[:,1])
+        if component == 'z':
+            v_norm = np.abs(v_cond_valence[:,2])
+        if component == 'xy':
+            v_norm = np.linalg.norm(v_cond_valence[:,:2], axis=-1)
+        if component == 'total':
+            v_norm = np.linalg.norm(v_cond_valence, axis=-1)
+        all_v_norms.append(v_norm)
+    vmin = min(np.min(vn) for vn in all_v_norms)
+    vmax = max(np.max(vn) for vn in all_v_norms)
+    for i, r in enumerate(bs.relpos_segments):
+        bands = bs.bands_eV[i]
+        val_band = bands[:,n_occ-1]
+        cond_band = bands[:,n_occ]
+        sc = ax.scatter(x=r, y=cond_band, vmin=vmin, vmax=vmax, cmap='viridis', c=all_v_norms[i])
+        ax.scatter(x=r, y=val_band, vmin=vmin, vmax=vmax, cmap='viridis', c=all_v_norms[i])
+    cbar = plt.colorbar(sc, ax=ax)
+    if momentum:
+        cbar.set_label(rf"$|p_{{{component.lower()}}}|$ [a.u.]")
+    else:
+        cbar.set_label(rf"$|v_{{{component.lower()}}}|$ [a.u.]")
+    pos_lines = []
+    for seg in bs.relpos_segments:
+        pos_lines.append(seg[0])
+    pos_lines.append(bs.relpos_segments[-1][-1])
+    assert len(pos_lines) == len(bs.path)
+    labels = [r"$\Gamma" if sym == 'G' else sym for sym in bs.path]
+    utils.plotLines(ax=ax, pos=pos_lines, labels=bs.path)
+    if energy_range_eV is not None:
+        ax.set_ylim(bottom=energy_range_eV[0], top=energy_range_eV[1])
+    plt.savefig(f'colored_bands_{'p' if momentum else 'v'}.pdf')
+    plt.show()
+
 

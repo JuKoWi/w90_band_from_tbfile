@@ -252,10 +252,10 @@ def get_momentum_orth(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
     p = +1j * commutator + grad_H
     return p, Sk_orth, Hk_orth
 
-def get_momentum_bloch(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice):
+def get_momentum_bloch(Hr, Sr, pr, degeneracies, kPoints, cells, lattice):
     """Calculate momentum directly in Bloch basis according to formula 21 from 10.21468/SciPostPhysCore.6.1.002"""
     Sk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints)
-    Rk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=Rr, kFrac=kPoints)
+    Rk = parse_and_FT.Rk_degenerate(cells=cells, degeneracies=degeneracies, Rr=pr, kFrac=kPoints)
     Hk = parse_and_FT.Hk_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints)
     gradS_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Sr, kFrac=kPoints, lattice=lattice)
     gradH_atomic = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr, kFrac=kPoints, lattice=lattice)
