@@ -47,6 +47,7 @@ def generate_spectra(tb_files, ktuple, filled_bands, momentum=False):
                                         filled_bands=filled_bands, 
                                         eta_eV=eta_eV,
                                         T_K=300,
+                                        # range_omega=(4,15),
             )
             with h5py.File(f'{tb_model['approx']}-cond.hdf5', 'w') as f:
                 f.attrs['latest_change'] = str(np.datetime64("now"))
@@ -71,11 +72,11 @@ def compare_spectra(specfiles):
     plt.show()
 
 if __name__ == "__main__":
-    tb_files = ['GaAs_mulliken.hdf5','GaAs_onsite_expansion.hdf5', 
-                # 'GaAs_onsite_only.hdf5', 'GaAs_shift_only.hdf5', 
-                'GaAs_sk.hdf5']
+    tb_files = ['hBN_mulliken.hdf5','hBN_onsite_expansion.hdf5', 
+                # 'hBN_onsite_only.hdf5', 'hBN_shift_only.hdf5', 
+                'hBN_sk.hdf5']
     # single = ['hBN_sk.hdf5']
-    # generate_spectra(tb_files=tb_files, ktuple=(100,100,1), filled_bands=4, momentum=False) 
+    generate_spectra(tb_files=tb_files, ktuple=(100,100,1), filled_bands=4, momentum=False) 
     spectra = ['onsite_expansion-cond.hdf5', 'sk-cond.hdf5', 'mulliken-cond.hdf5', 
             #    'shift_only-cond.hdf5', 'onsite_only-cond.hdf5'
                ]

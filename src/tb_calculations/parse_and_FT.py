@@ -11,6 +11,7 @@ reciprocal space. Contains:
 import numpy as np
 import h5py
 import os
+import shutil
 from tb_calculations.utils import *
 
 
@@ -214,6 +215,57 @@ def parse_hdf5(filename):
             tb_data['r'] = None
         check_pos_op_properties(lattice_au=tb_data['cell'], cells=tb_data['lat_points'], S=tb_data['S'], R_au=tb_data['r'])
     return tb_data
+
+def read_dftb_hamiltonian(file):
+    with open(file, 'r') as f:
+        f.readline()
+        n_atoms = int(f.readline())
+        f.readline()
+        n_orbs = []
+        for i in range(n_atoms):
+            n_orbs.append(int(f.readline().split()[2]))
+        lat_points = []
+        lattice_dict = {}
+        while True:
+            startline = f.readline()
+            if not startline:
+                break
+            vals = f.readline().split()
+            atom1 = int(vals[0]) -1
+            atom2 = int(vals[2]) -1
+            Rx = int(vals[3])
+            Ry = int(vals[4])
+            Rz = int(vals[5])
+            lat_points.append(np.array([Rx, Ry, Rz]))
+            block = []
+            f.readline()
+            for i in range(n_orbs[atom1]):
+                vals = [float(num) for num in f.readline().split()]
+                block.append(vals)
+            matrix = lattice_dict.setdefault((Rx, Ry, Rz), np.zeros((sum(n_orbs), sum(n_orbs))))
+            matrixm = lattice_dict.setdefault((-Rx, -Ry, -Rz), np.zeros((sum(n_orbs), sum(n_orbs))))
+            start_idx = sum(n_orbs[:atom1])
+            stop_idx = start_idx + n_orbs[atom1]
+            start_idy = sum(n_orbs[:atom2])
+            stop_idy = start_idy + n_orbs[atom2]
+            matrix[start_idx:stop_idx, start_idy:stop_idy] = np.array(block)
+            matrixm[start_idy:stop_idy, start_idx:stop_idx] = np.array(block).T.conj()
+        return lattice_dict
+
+def hdf5_hamreal(hamreal, hdf5file, outfile):
+    """modify an existing hdf5 file with a Hamiltonian from a DFTB+ hamreal1.dat file"""
+    H_dict = read_dftb_hamiltonian(file=hamreal)
+    H_list = []
+    shutil.copyfile(hdf5file, outfile)
+    with h5py.File(outfile, 'r+') as f:
+        lat_points = np.array(f["R_points"])
+        n_orbs = int(f['n_orbs'][()])
+        for R in lat_points:
+            H_list.append(H_dict.setdefault((R[0], R[1], R[2]), np.zeros((n_orbs, n_orbs), dtype=complex)))
+        del f['H']
+        dset_H = f.create_dataset('H', data=np.array(H_list))
+        dset_H.attrs['unit'] = 'atomic unit'
+
 
 def check_pos_op_properties(lattice_au, cells, S, R_au):
     """make sure that for every lattice point there is also the inverse in the list. 

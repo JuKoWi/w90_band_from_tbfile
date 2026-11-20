@@ -60,11 +60,11 @@ class Bands():
         return self
 
     @classmethod
-    def from_dftbplus(cls, outfile, n_bands, bz_path, label_to_k, points_per_segment, lattice_ang):
+    def from_dftbplus(cls, infile, n_bands, bz_path, label_to_k, points_per_segment, lattice_ang):
         self = cls()
         self.method = "DFTB+"
         self.path = bz_path
-        self.bands_eV = utils.parse_dftb_band(filepath=outfile, n_bands=n_bands, points_per_segment=points_per_segment)
+        self.bands_eV = utils.parse_dftb_band(filepath=infile, n_bands=n_bands, points_per_segment=points_per_segment)
         self.relpos_segments = self._kpoints_to_relpos(lattice_ang=lattice_ang, bz_path=bz_path, label_to_k=label_to_k, points_per_segment=points_per_segment)
         self._normalize_relpos()
         return self
@@ -122,7 +122,7 @@ def plot_bandstructures(bs_list, energy_range_eV=None):
     for i, bs in enumerate(bs_list):
         ax.plot([], [], color=colors[names[i]], label=bs.method)
         for j, r in enumerate(bs.relpos_segments):
-            plt.plot(r, bs.bands_eV[j], '.', color=colors[names[i]], ms=2) 
+            plt.plot(r, bs.bands_eV[j], color=colors[names[i]]) 
 
     bs = bs_list[0]
     pos_lines = []
@@ -130,10 +130,12 @@ def plot_bandstructures(bs_list, energy_range_eV=None):
         pos_lines.append(seg[0])
     pos_lines.append(bs.relpos_segments[-1][-1])
     assert len(pos_lines) == len(bs.path)
-    utils.plotLines(ax=ax, pos=pos_lines, labels=bs.path)
+    labels = [r"$\Gamma$" if sym == 'G' else sym for sym in bs.path]
+    utils.plotLines(ax=ax, pos=pos_lines, labels=labels)
     if energy_range_eV is not None:
         ax.set_ylim(bottom=energy_range_eV[0], top=energy_range_eV[1])
-    ax.legend()
+    # ax.legend()
+    plt.savefig("bands.pdf")
     plt.show()
 
 def colorcoded_bandstructures(bs, component, n_occ, energy_range_eV=None, momentum=False):
@@ -179,8 +181,8 @@ def colorcoded_bandstructures(bs, component, n_occ, energy_range_eV=None, moment
         pos_lines.append(seg[0])
     pos_lines.append(bs.relpos_segments[-1][-1])
     assert len(pos_lines) == len(bs.path)
-    labels = [r"$\Gamma" if sym == 'G' else sym for sym in bs.path]
-    utils.plotLines(ax=ax, pos=pos_lines, labels=bs.path)
+    labels = [r"$\Gamma$" if sym == 'G' else sym for sym in bs.path]
+    utils.plotLines(ax=ax, pos=pos_lines, labels=labels)
     if energy_range_eV is not None:
         ax.set_ylim(bottom=energy_range_eV[0], top=energy_range_eV[1])
     plt.savefig(f'colored_bands_{'p' if momentum else 'v'}.pdf')

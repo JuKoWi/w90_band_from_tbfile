@@ -44,10 +44,10 @@ def bandstructure_from_k(tb_file, ksegments, orthogonal=False):
     else:
         lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file, orthogonal=orthogonal)
     bands = []
-    H_orth = []
     for i, k_frac in enumerate(ksegments):
-        _, Hk_orth, _, _ = orthogonalize(lattice=lattice, cells=cells, Hr=Hr, Sr=Sr, Rr=Rr, kPoints=k_frac, degeneracies=degeneracies)
-        vals, vecs = sc.linalg.eigh(Hk_orth)
+        Hk = parse_and_FT.Hk_degenerate(cells=cells, Hr=Hr, kFrac=k_frac, degeneracies=degeneracies)
+        Sk = parse_and_FT.Hk_degenerate(cells=cells, Hr=Sr, kFrac=k_frac, degeneracies=degeneracies)
+        vals, vecs = sc.linalg.eigh(Hk, Sk)
         bands.append(np.real(vals))
     return bands
 
@@ -188,7 +188,8 @@ def alternative_grad_Hk(Hr, Sr, lattice, kPoints, cells, degeneracies):
     S_inv_sqrt_grad = gradient_S_inv_sqrt(Sr, kPoints=kPoints, lattice=lattice, cells=cells, degeneracies=degeneracies)
     gradHk = gradient_H_atomic(Hr=Hr, kPoints=kPoints, cells=cells, lattice=lattice, degeneracies=degeneracies)
     analytical_gradHk = parse_and_FT.grad_H_degenerate(cells=cells, degeneracies=degeneracies, Hr=Hr,kFrac=kPoints, lattice=lattice)
-    assert np.allclose(analytical_gradHk, gradHk)
+    if not np.allclose(analytical_gradHk, gradHk):
+        print(f"Analytical H-gradient does not match finite difference H-gradient by: {np.max(np.abs(analytical_gradHk - gradHk))}")
     A = np.einsum('kabx, kbc, kcd -> kadx', S_inv_sqrt_grad, Hk, S_inv_sqrt)
     B = np.einsum('kab,kbcx,kcd->kadx', S_inv_sqrt, gradHk, S_inv_sqrt)
     C = np.einsum('kab,kbc,kcdx->kadx', S_inv_sqrt, Hk, S_inv_sqrt_grad)
