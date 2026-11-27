@@ -72,15 +72,17 @@ def compare_spectra(specfiles):
     plt.show()
 
 if __name__ == "__main__":
-    tb_files = ['hBN_mulliken.hdf5','hBN_onsite_expansion.hdf5', 
-                # 'hBN_onsite_only.hdf5', 'hBN_shift_only.hdf5', 
-                'hBN_sk.hdf5']
-    # single = ['hBN_sk.hdf5']
-    generate_spectra(tb_files=tb_files, ktuple=(100,100,1), filled_bands=4, momentum=False) 
-    spectra = ['onsite_expansion-cond.hdf5', 'sk-cond.hdf5', 'mulliken-cond.hdf5', 
+    tb_files = [
+        'ZnO_zincblende_mulliken.hdf5','ZnO_zincblende_onsite_expansion.hdf5', 
+                # 'ZnO_zincblende_onsite_only.hdf5', 'ZnO_zincblende_shift_only.hdf5', 
+                'ZnO_zincblende_sk.hdf5']
+    single = ['graphene_sk.hdf5']
+    generate_spectra(tb_files=single, ktuple=(100,100,1), filled_bands=4, momentum=True) 
+    spectra = ['onsite_expansion-condZnOwurtzite.hdf5', 'sk-condZnOwurtzite.hdf5', 'mulliken-condZnOwurtzite.hdf5', 
             #    'shift_only-cond.hdf5', 'onsite_only-cond.hdf5'
                ]
-    compare_spectra(specfiles=spectra)
+    momentum_comparison = ['momentum-cond.hdf5', 'sk-cond.hdf5']
+    compare_spectra(specfiles=momentum_comparison)
 
     # lattice, cells, degeneracies, Hr, Sr, Rr = read_tb("./data/seedname_graphene/seedname_tb.dat") 
     # kFrac = k_grid(n_points=(30,30,1))

@@ -283,8 +283,10 @@ def velocity_bloch_lee(Hr, Sr, Rr, degeneracies, kPoints, cells, lattice_au):
     term2 = -np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, gradS_atomic, U, eigvals, optimize=True)
     term3 = 1j * np.einsum('kab, kbcz, kcd, ka -> kadz', U_dagger, Rk, U, eigvals, optimize=True)
     term4 = -1j * np.einsum('kab, kbcz, kcd, kd -> kadz', U_dagger, Rk, U, eigvals, optimize=True)
-    if not check_vector_hermitian(pk= term1 + term2 + term3 + term4, atol=1e-7):
-        print(f"Momentum after Lee-formula is not hermitian")
+    vk = term1 + term2 + term3 + term4
+    if not check_vector_hermitian(pk=vk, atol=1e-7):
+        hermitian_tolerance = np.max(np.abs(vk - np.transpose(vk, axes=(0,2,1,3)).conj()))
+        print(f"Velocity after Lee-formula is not hermitian by {hermitian_tolerance}")
     return term1 + term2 + term3 + term4
 
 def get_velocity_atomic(Hr, Sr, Rr, degeneracies, kFrac, cells, lattice):

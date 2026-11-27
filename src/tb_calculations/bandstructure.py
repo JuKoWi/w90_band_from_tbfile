@@ -35,7 +35,7 @@ class Bands():
         self.method = "Custom TB"
         self.path = bz_path
         lattice, cells, degeneracies, Hr, Sr, Rr = parse_and_FT.read_tb(tb_file, orthogonal=orthogonal)
-        segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=lattice, label_to_k=label_to_k)
+        segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=lattice, label_to_k=label_to_k, pointsPerSegment=100)
         self.relpos_segments = [s[1] for s in segments]
 
         self.ksegments = [s[0] for s in segments]
@@ -50,7 +50,7 @@ class Bands():
         self.method = "Custom DFTB"
         self.path = bz_path
         tb_model = parse_and_FT.parse_hdf5(filename=tb_file)
-        segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=tb_model['cell'], label_to_k=label_to_k)
+        segments, labels = parse_and_FT.parsePath(path=bz_path, lattice=tb_model['cell'], label_to_k=label_to_k, pointsPerSegment=500)
         self.relpos_segments = [s[1] for s in segments]
 
         self.ksegments = [s[0] for s in segments]
@@ -171,6 +171,8 @@ def colorcoded_bandstructures(bs, component, n_occ, energy_range_eV=None, moment
         cond_band = bands[:,n_occ]
         sc = ax.scatter(x=r, y=cond_band, vmin=vmin, vmax=vmax, cmap='viridis', c=all_v_norms[i])
         ax.scatter(x=r, y=val_band, vmin=vmin, vmax=vmax, cmap='viridis', c=all_v_norms[i])
+    for j, r in enumerate(bs.relpos_segments):
+        plt.plot(r, bs.bands_eV[j], color=mcolors.TABLEAU_COLORS['tab:blue']) 
     cbar = plt.colorbar(sc, ax=ax)
     if momentum:
         cbar.set_label(rf"$|p_{{{component.lower()}}}|$ [a.u.]")
